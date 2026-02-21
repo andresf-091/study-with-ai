@@ -9,6 +9,8 @@ from uuid import uuid4
 from PySide6.QtWidgets import QApplication
 
 from praktikum_app.presentation.qt.main_window import MainWindow
+from praktikum_app.presentation.qt.theme import apply_theme
+from praktikum_app.presentation.qt.tray import TrayController
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +36,10 @@ def run(argv: Sequence[str] | None = None) -> int:
         correlation_id,
     )
     application = create_application(argv)
+    apply_theme(application)
     window = MainWindow()
+    tray_controller = TrayController(application=application, window=window)
+    tray_controller.initialize()
     window.show()
     exit_code = application.exec()
     LOGGER.info(
