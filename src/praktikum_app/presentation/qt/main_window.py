@@ -37,8 +37,8 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         root = QWidget(self)
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(16)
+        layout.setContentsMargins(32, 28, 32, 24)
+        layout.setSpacing(18)
 
         title_label = QLabel("Praktikum of the Day", root)
         title_label.setObjectName("mainTitleLabel")
@@ -57,7 +57,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(separator)
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(16)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(20)
         content_layout.addWidget(self._build_modules_panel(root), stretch=3)
         content_layout.addWidget(self._build_today_panel(root), stretch=2)
         layout.addLayout(content_layout)
@@ -73,6 +74,8 @@ class MainWindow(QMainWindow):
         panel = QGroupBox("Modules", parent)
         panel.setObjectName("modulesPanel")
         panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(16, 24, 16, 16)
+        panel_layout.setSpacing(10)
 
         self._modules_list.setObjectName("modulesList")
         self._modules_list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
@@ -92,6 +95,8 @@ class MainWindow(QMainWindow):
         panel = QGroupBox("Today", parent)
         panel.setObjectName("todayPanel")
         panel_layout = QVBoxLayout(panel)
+        panel_layout.setContentsMargins(16, 24, 16, 16)
+        panel_layout.setSpacing(10)
 
         today_hint = QLabel(
             "No active course imported yet. Use Import course... to begin your plan.",
@@ -120,4 +125,6 @@ class MainWindow(QMainWindow):
             "event=import_course_clicked correlation_id=%s course_id=- module_id=- llm_call_id=-",
             correlation_id,
         )
-        self.statusBar().showMessage("Import flow will be implemented in a next PR.", 3000)
+        self.statusBar().showMessage(
+            "Import flow will be implemented in a next PR.", 3000
+        )

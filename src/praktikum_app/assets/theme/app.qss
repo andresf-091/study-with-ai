@@ -1,94 +1,120 @@
 /* Renaissance minimalism baseline for Study with AI */
 
 QMainWindow {
-    background-color: #ece7d7;
+    background-color: #ece5d4;
 }
 
 QWidget {
-    background-color: #f7f3ea;
+    background-color: #f6f1e7;
     color: #2f2921;
     font-family: "EB Garamond";
-    font-size: 17px;
-    line-height: 1.45;
+    font-size: 18px;
+    line-height: 1.5;
 }
 
 QLabel#mainTitleLabel {
-    font-size: 42px;
-    font-weight: 700;
+    font-family: "EB Garamond";
+    font-size: 44px;
+    font-weight: 900;
     color: #272117;
-    padding-bottom: 4px;
 }
 
 QLabel#mainSubtitleLabel {
-    font-size: 20px;
-    color: #4a3f32;
+    font-family: "EB Garamond";
+    font-size: 22px;
+    font-weight: 500;
+    color: #4b4033;
 }
 
 QFrame#headerSeparator {
-    background: #d6ccb7;
+    background: #d4c7af;
     max-height: 1px;
     border: none;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
 }
 
 QGroupBox {
+    font-family: "EB Garamond";
     border: none;
-    border-radius: 0;
+    border-radius: 14px;
     margin-top: 10px;
-    padding: 16px 8px 8px 8px;
+    padding: 20px 14px 14px 14px;
     font-size: 22px;
-    font-weight: 700;
+    font-weight: 600;
     color: #2f271c;
-    background-color: transparent;
+    background-color: #efe4cc;
 }
 
 QGroupBox::title {
-    left: 0px;
-    padding: 0 0 2px 0;
+    font-family: "EB Garamond";
+    font-weight: 600;
+    left: 25px;
+    top: 6px;
     background-color: transparent;
+}
+
+#modulesPanel {
+    background-color: #ecdec3;
+}
+
+#todayPanel {
+    background-color: #efe2ca;
+}
+
+QLabel#todayHintLabel {
+    font-family: "EB Garamond";
+    padding: 8px;
+    font-size: 19px;
+    font-weight: 500;
+    color: #4a3e30;
+    border: none;
+    border-radius: 10px;
 }
 
 QListWidget {
     border: none;
-    border-radius: 0;
-    background-color: #f9f6ee;
-    padding: 4px;
+    border-radius: 10px;
+    background-color: #f8f1e1;
+    padding: 8px;
     outline: none;
 }
 
 QListWidget::item {
-    padding: 10px 6px;
-    border-radius: 0;
+    font-family: "EB Garamond";
+    padding: 10px 8px;
+    border-radius: 8px;
     font-size: 19px;
+    font-weight: 500;
 }
 
 QListWidget::item:selected {
-    background-color: #e4d9c3;
+    background-color: #e2d2b5;
     color: #2a2319;
 }
 
 QPushButton {
+    font-family: "EB Garamond";
     border: none;
-    border-radius: 0;
-    padding: 10px 22px;
-    min-height: 34px;
+    border-radius: 10px;
+    padding: 10px 24px;
+    min-height: 36px;
     font-size: 20px;
     font-weight: 700;
     color: #2f2517;
-    background-color: #e9dcc4;
+    background-color: #e5d4b5;
 }
 
 QPushButton:hover {
-    background-color: #e0d2b8;
+    background-color: #dcc9a8;
 }
 
 QPushButton:pressed {
-    background-color: #d4c39f;
+    background-color: #cfbb97;
 }
 
 QStatusBar {
     border: none;
-    background-color: #e6dfcf;
+    background-color: #e7decc;
     color: #3b3124;
     font-size: 16px;
 }
