@@ -1,0 +1,11 @@
+/.info
+AGENTS.md
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.pyright/
+*.pyc
+*.egg-info/
+pytest-cache-files-*/
+uv.lock
