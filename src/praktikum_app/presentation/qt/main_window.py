@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from uuid import uuid4
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -10,6 +13,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MainWindow(QMainWindow):
@@ -35,4 +40,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Ready", 2000)
 
     def _on_import_course_clicked(self) -> None:
+        correlation_id = str(uuid4())
+        LOGGER.info(
+            "event=import_course_clicked correlation_id=%s course_id=- module_id=- llm_call_id=-",
+            correlation_id,
+        )
         self.statusBar().showMessage("Import flow will be implemented in a next PR.", 3000)
