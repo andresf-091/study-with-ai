@@ -5,15 +5,23 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload
 
 from praktikum_app.application.import_persistence import (
     ImportedCourseRepository,
+    ImportedCourseSummary,
     PersistedImportRecord,
 )
 from praktikum_app.domain.import_text import CourseSource, CourseSourceType, RawCourseText
-from praktikum_app.infrastructure.db.models import CourseModel, CourseSourceModel, RawTextModel
+from praktikum_app.infrastructure.db.models import (
+    CourseModel,
+    CourseSourceModel,
+    DeadlineModel,
+    LlmCallModel,
+    ModuleModel,
+    RawTextModel,
+)
 
 
 class SqlAlchemyImportedCourseRepository(ImportedCourseRepository):
@@ -95,6 +103,61 @@ class SqlAlchemyImportedCourseRepository(ImportedCourseRepository):
             raw_text_id=raw_text_model.id,
             raw_text=raw_text,
         )
+
+    def list_imported_courses(self) -> list[ImportedCourseSummary]:
+        statement = (
+            select(RawTextModel, CourseSourceModel)
+            .join(CourseSourceModel, RawTextModel.source_id == CourseSourceModel.id)
+            .order_by(RawTextModel.created_at.desc())
+        )
+        rows = self._session.execute(statement).all()
+
+        summaries: list[ImportedCourseSummary] = []
+        seen_course_ids: set[str] = set()
+        for raw_text_model, source_model in rows:
+            course_id = raw_text_model.course_id
+            if course_id in seen_course_ids:
+                continue
+
+            seen_course_ids.add(course_id)
+            summaries.append(
+                ImportedCourseSummary(
+                    course_id=course_id,
+                    source_type=CourseSourceType(source_model.source_type),
+                    filename=source_model.filename,
+                    imported_at=source_model.imported_at,
+                    length=raw_text_model.length,
+                    content_hash=raw_text_model.content_hash,
+                )
+            )
+
+        return summaries
+
+    def delete_course(self, course_id: str) -> bool:
+        if self._session.get(CourseModel, course_id) is None:
+            return False
+
+        module_ids = list(
+            self._session.execute(
+                select(ModuleModel.id).where(ModuleModel.course_id == course_id)
+            ).scalars()
+        )
+
+        if module_ids:
+            self._session.execute(
+                delete(LlmCallModel).where(LlmCallModel.module_id.in_(module_ids))
+            )
+
+        self._session.execute(delete(LlmCallModel).where(LlmCallModel.course_id == course_id))
+        self._session.execute(delete(DeadlineModel).where(DeadlineModel.course_id == course_id))
+        self._session.execute(delete(ModuleModel).where(ModuleModel.course_id == course_id))
+        self._session.execute(delete(RawTextModel).where(RawTextModel.course_id == course_id))
+        self._session.execute(
+            delete(CourseSourceModel).where(CourseSourceModel.course_id == course_id)
+        )
+        self._session.execute(delete(CourseModel).where(CourseModel.id == course_id))
+
+        return True
 
 
 def _derive_course_title(imported_text: RawCourseText) -> str | None:

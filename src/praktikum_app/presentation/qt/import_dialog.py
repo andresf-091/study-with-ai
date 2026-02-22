@@ -61,15 +61,15 @@ class ImportCourseDialog(QDialog):
         self._paste_input = QPlainTextEdit(self)
         self._pdf_path_input = QLineEdit(self)
         self._preview_output = QPlainTextEdit(self)
-        self._preview_button = QPushButton("Preview", self)
-        self._continue_button = QPushButton("Continue", self)
-        self._cancel_button = QPushButton("Cancel", self)
+        self._preview_button = QPushButton("Предпросмотр", self)
+        self._continue_button = QPushButton("Продолжить", self)
+        self._cancel_button = QPushButton("Отмена", self)
         self._ocr_hint_label = QLabel(self)
 
         self._build_ui()
 
     def _build_ui(self) -> None:
-        self.setWindowTitle("Import Course Text")
+        self.setWindowTitle("Импорт курса")
         self.resize(820, 620)
 
         root_layout = QVBoxLayout(self)
@@ -77,18 +77,20 @@ class ImportCourseDialog(QDialog):
         root_layout.setSpacing(12)
 
         self._tabs.setObjectName("importSourceTabs")
-        self._tabs.addTab(self._build_file_tab(), "Text file")
-        self._tabs.addTab(self._build_paste_tab(), "Paste")
+        self._tabs.addTab(self._build_file_tab(), "Текстовый файл")
+        self._tabs.addTab(self._build_paste_tab(), "Вставка")
         self._tabs.addTab(self._build_pdf_tab(), "PDF")
         self._tabs.currentChanged.connect(self._on_source_changed)
         root_layout.addWidget(self._tabs)
 
-        preview_label = QLabel("Preview (normalized text)", self)
+        preview_label = QLabel("Предпросмотр (нормализованный текст)", self)
         root_layout.addWidget(preview_label)
 
         self._preview_output.setObjectName("importPreviewTextEdit")
         self._preview_output.setReadOnly(True)
-        self._preview_output.setPlaceholderText("Preview will appear here after clicking Preview.")
+        self._preview_output.setPlaceholderText(
+            "Нажмите «Предпросмотр», чтобы увидеть результат."
+        )
         root_layout.addWidget(self._preview_output, stretch=1)
         self._ocr_hint_label.setObjectName("ocrHintLabel")
         self._ocr_hint_label.setWordWrap(True)
@@ -115,13 +117,13 @@ class ImportCourseDialog(QDialog):
         layout = QVBoxLayout(tab)
         layout.setSpacing(8)
 
-        hint = QLabel("Choose a local .txt or .md file.", tab)
+        hint = QLabel("Выберите локальный файл .txt или .md.", tab)
         layout.addWidget(hint)
 
         file_row = QHBoxLayout()
         self._file_path_input.setObjectName("importFilePathInput")
-        self._file_path_input.setPlaceholderText("Path to course text file")
-        browse_button = QPushButton("Browse...", tab)
+        self._file_path_input.setPlaceholderText("Путь к файлу курса")
+        browse_button = QPushButton("Обзор...", tab)
         browse_button.setObjectName("importFileBrowseButton")
         browse_button.clicked.connect(self._on_browse_file_clicked)
 
@@ -136,12 +138,12 @@ class ImportCourseDialog(QDialog):
         layout = QVBoxLayout(tab)
         layout.setSpacing(8)
 
-        hint = QLabel("Paste course text below.", tab)
+        hint = QLabel("Вставьте текст курса ниже.", tab)
         layout.addWidget(hint)
 
         self._paste_input.setObjectName("importPasteTextEdit")
         self._paste_input.setPlaceholderText(
-            "Paste course description, syllabus, or assignment details."
+            "Вставьте описание курса, программу или детали задания."
         )
         layout.addWidget(self._paste_input, stretch=1)
         return tab
@@ -151,13 +153,13 @@ class ImportCourseDialog(QDialog):
         layout = QVBoxLayout(tab)
         layout.setSpacing(8)
 
-        hint = QLabel("Choose a local .pdf file.", tab)
+        hint = QLabel("Выберите локальный файл .pdf.", tab)
         layout.addWidget(hint)
 
         file_row = QHBoxLayout()
         self._pdf_path_input.setObjectName("importPdfPathInput")
-        self._pdf_path_input.setPlaceholderText("Path to PDF file")
-        browse_button = QPushButton("Browse...", tab)
+        self._pdf_path_input.setPlaceholderText("Путь к PDF-файлу")
+        browse_button = QPushButton("Обзор...", tab)
         browse_button.setObjectName("importPdfBrowseButton")
         browse_button.clicked.connect(self._on_browse_pdf_clicked)
 
@@ -170,9 +172,9 @@ class ImportCourseDialog(QDialog):
     def _on_browse_file_clicked(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select text file",
+            "Выберите текстовый файл",
             "",
-            "Text files (*.txt *.md);;All files (*)",
+            "Текстовые файлы (*.txt *.md);;Все файлы (*)",
         )
         if file_path:
             self._file_path_input.setText(file_path)
@@ -180,9 +182,9 @@ class ImportCourseDialog(QDialog):
     def _on_browse_pdf_clicked(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select PDF file",
+            "Выберите PDF-файл",
             "",
-            "PDF files (*.pdf);;All files (*)",
+            "PDF-файлы (*.pdf);;Все файлы (*)",
         )
         if file_path:
             self._pdf_path_input.setText(file_path)
@@ -269,8 +271,8 @@ class ImportCourseDialog(QDialog):
             )
             QMessageBox.warning(
                 self,
-                "Import Error",
-                "Could not prepare import preview. Check input and try again.",
+                "Ошибка импорта",
+                "Не удалось подготовить предпросмотр. Проверьте данные и попробуйте снова.",
             )
             return
 
@@ -303,8 +305,12 @@ class ImportCourseDialog(QDialog):
                 correlation_id,
                 exc.__class__.__name__,
             )
-            message = str(exc) if isinstance(exc, ValueError) else "Could not prepare PDF preview."
-            QMessageBox.warning(self, "Import Error", message)
+            message = (
+                str(exc)
+                if isinstance(exc, ValueError)
+                else "Не удалось подготовить предпросмотр PDF."
+            )
+            QMessageBox.warning(self, "Ошибка импорта", message)
             return
 
         self._apply_preview_result(result=result.raw_text)
@@ -356,8 +362,8 @@ class ImportCourseDialog(QDialog):
                 )
                 QMessageBox.warning(
                     self,
-                    "Import Error",
-                    "Could not save import to local database. Run migrations and try again.",
+                    "Ошибка импорта",
+                    "Не удалось сохранить импорт в локальную БД. Выполните миграции и повторите.",
                 )
                 return
 
@@ -444,7 +450,7 @@ class ImportCourseDialog(QDialog):
             return
 
         self._ocr_hint_label.setText(
-            "This PDF looks scan-like or low-text. OCR may improve extraction quality."
+            "Этот PDF похож на скан или содержит мало текста. OCR может улучшить результат."
         )
         self._ocr_hint_label.setVisible(True)
 
@@ -452,13 +458,13 @@ class ImportCourseDialog(QDialog):
 def _read_text_file(file_path: str) -> str:
     """Read UTF-8 .txt/.md file for import flow."""
     if not file_path:
-        raise ValueError("No file selected.")
+        raise ValueError("Файл не выбран.")
 
     path = Path(file_path)
     if not path.exists() or not path.is_file():
-        raise ValueError("Selected file does not exist.")
+        raise ValueError("Выбранный файл не найден.")
     if path.suffix.lower() not in {".txt", ".md"}:
-        raise ValueError("Unsupported file type. Choose .txt or .md.")
+        raise ValueError("Неподдерживаемый тип файла. Выберите .txt или .md.")
 
     try:
         return path.read_text(encoding="utf-8")

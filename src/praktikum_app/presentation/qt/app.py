@@ -23,8 +23,8 @@ def create_application(argv: Sequence[str] | None = None) -> QApplication:
 
     resolved_argv = list(argv) if argv is not None else []
     application = QApplication(resolved_argv)
-    application.setApplicationName("Study with AI")
-    application.setOrganizationName("Praktikum")
+    application.setApplicationName("Практикум с ИИ")
+    application.setOrganizationName("Практикум")
     return application
 
 
