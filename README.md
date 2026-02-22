@@ -40,10 +40,10 @@ praktikum-app
 
 ## Text Import Flow (PR#3)
 
-- Open the main window and click `Import course...`.
-- Use `Text file` tab for local `.txt` / `.md` sources or `Paste` tab for direct text.
-- Click `Preview` to run normalization and inspect the result.
-- Click `Continue` to save the normalized text into local SQLite storage.
+- Откройте главное окно и нажмите `Импортировать курс...`.
+- Используйте вкладку `Текстовый файл` для `.txt` / `.md` или вкладку `Вставка`.
+- Нажмите `Предпросмотр` для нормализации и проверки текста.
+- Нажмите `Продолжить`, чтобы сохранить импорт в локальную SQLite БД.
 
 Temporary storage note:
 - The app keeps a transient in-memory cache for current UI state.
@@ -51,16 +51,47 @@ Temporary storage note:
 
 ## PDF Import Flow (PR#4)
 
-- Open the `Import course...` dialog and use the `PDF` tab.
-- Select a local `.pdf` file and click `Preview`.
-- Text extraction runs with primary strategy (`pypdf`) and fallback (`pdfminer.six`) when quality is low.
-- Click `Continue` to save normalized extracted text into local SQLite storage.
-- If the PDF appears scan-like or low-text, the dialog shows a short OCR hint.
+- В диалоге `Импорт курса` откройте вкладку `PDF`.
+- Выберите локальный `.pdf` файл и нажмите `Предпросмотр`.
+- Извлечение текста использует primary (`pypdf`) и fallback (`pdfminer.six`) при низком качестве.
+- Нажмите `Продолжить`, чтобы сохранить нормализованный текст в SQLite.
+- Если PDF похож на скан/low-text, появится подсказка про OCR.
+
+## Current Courses UI (Out-of-plan task)
+
+- Главный экран показывает блок `Загруженные курсы` со всеми курсами из БД.
+- Для каждого курса отображаются: `course_id`, тип источника, имя файла (или fallback),
+  дата импорта, длина текста и короткий хеш.
+- В правой панели доступны действия:
+  `Обновить из БД`, `Импортировать курс...`, `Удалить выбранный курс`.
+- Удаление требует подтверждения в диалоге `Подтверждение удаления`.
+- После удаления список и выбор обновляются сразу; удалённый курс не возвращается после рестарта.
+
+Покрытые UI-состояния:
+- `loaded`: список курсов загружен и доступен для выбора.
+- `empty`: показан empty-state с подсказкой импортировать курс.
+- `error`: при ошибке БД показано сообщение пользователю + diagnostics в логах.
+- `no-selection`: удаление заблокировано до выбора курса.
 
 ## Database and Migrations (PR#5)
 
-- Default local DB path: `~/.study-with-ai/study_with_ai.db`
-- Optional override via environment variable: `PRAKTIKUM_DB_PATH`
+Path resolution:
+
+1. If `PRAKTIKUM_DB_PATH` is set, app uses that value as DB file path.
+2. Otherwise app uses default from code:
+   `Path.home() / ".study-with-ai" / "study_with_ai.db"`.
+
+Default path examples:
+
+- Linux: `/home/<user>/.study-with-ai/study_with_ai.db`
+- macOS: `/Users/<user>/.study-with-ai/study_with_ai.db`
+- Windows: `C:\Users\<user>\.study-with-ai\study_with_ai.db`
+
+Naming note:
+
+- Default directory is `.study-with-ai` (hyphen).
+- Default file name is `study_with_ai.db` (underscore).
+- Both come from `src/praktikum_app/infrastructure/db/config.py`.
 
 Apply migrations:
 
@@ -83,11 +114,27 @@ $env:PRAKTIKUM_DB_PATH = "$PWD\\study_with_ai.db"
 .\.venv\Scripts\alembic.exe upgrade head
 ```
 
+Environment variable recommendations:
+
+- Prefer absolute path to a `.db` file.
+- Relative values are resolved against the current working directory.
+- Value should point to a file path, not a directory.
+- Set `PRAKTIKUM_DB_PATH` before running migrations and before starting the app.
+
 Verify import persistence:
 
 - Run migrations (`alembic upgrade head`).
-- Start app and complete `Import course... -> Preview -> Continue`.
-- Import is persisted to SQLite; in-memory store is retained only as transient UI cache.
+- Start app and complete `Импортировать курс... -> Предпросмотр -> Продолжить`.
+- Убедитесь, что курс появился в списке `Загруженные курсы`.
+- Перезапустите приложение: список курсов восстановится из БД.
+- Выберите курс и удалите его через `Удалить выбранный курс` + подтверждение.
+- In-memory store is retained only as transient UI cache.
+
+## Localization
+
+- Все user-facing строки интерфейса переведены на русский:
+  окно приложения, диалог импорта, вкладки, кнопки, подсказки, статусные сообщения,
+  confirm/error dialogs, меню system tray.
 
 ## Theme and Typography
 
