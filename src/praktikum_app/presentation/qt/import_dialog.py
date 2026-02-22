@@ -24,6 +24,9 @@ from praktikum_app.application.import_pdf_use_case import (
     ImportCoursePdfCommand,
     ImportCoursePdfUseCase,
 )
+from praktikum_app.application.import_persistence import (
+    PersistImportedCourseUseCase,
+)
 from praktikum_app.application.import_text_use_case import (
     ImportCourseTextCommand,
     ImportCourseTextUseCase,
@@ -42,11 +45,13 @@ class ImportCourseDialog(QDialog):
         use_case: ImportCourseTextUseCase,
         store: InMemoryImportStore,
         pdf_use_case: ImportCoursePdfUseCase | None = None,
+        persist_use_case: PersistImportedCourseUseCase | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._use_case = use_case
         self._pdf_use_case = pdf_use_case or ImportCoursePdfUseCase()
+        self._persist_use_case = persist_use_case
         self._store = store
         self._latest_preview: RawCourseText | None = None
         self._is_preview_dirty = True
@@ -320,7 +325,7 @@ class ImportCourseDialog(QDialog):
         )
 
     def continue_import(self) -> None:
-        """Persist preview result in temporary in-memory store and close dialog."""
+        """Persist preview result to storage and close dialog on success."""
         if self._latest_preview is None or self._is_preview_dirty:
             self.preview_import()
             if self._latest_preview is None or self._is_preview_dirty:
@@ -329,14 +334,48 @@ class ImportCourseDialog(QDialog):
         correlation_id = str(uuid4())
         imported = self._latest_preview
         assert imported is not None
+
+        course_id = "-"
+        source_id = "-"
+        raw_text_id = "-"
+        if self._persist_use_case is not None:
+            try:
+                persisted_record = self._persist_use_case.execute(imported)
+            except Exception as exc:
+                LOGGER.exception(
+                    (
+                        "event=import_continue_persist_failed correlation_id=%s "
+                        "course_id=- module_id=- llm_call_id=- source_type=%s "
+                        "content_hash=%s length=%s error_type=%s"
+                    ),
+                    correlation_id,
+                    imported.source.source_type.value,
+                    imported.content_hash,
+                    imported.length,
+                    exc.__class__.__name__,
+                )
+                QMessageBox.warning(
+                    self,
+                    "Import Error",
+                    "Could not save import to local database. Run migrations and try again.",
+                )
+                return
+
+            course_id = persisted_record.course_id
+            source_id = persisted_record.source_id
+            raw_text_id = persisted_record.raw_text_id
+
         self._store.save(imported)
         LOGGER.info(
             (
                 "event=import_continue_saved correlation_id=%s "
-                "course_id=- module_id=- llm_call_id=- "
+                "course_id=%s module_id=- llm_call_id=- source_id=%s raw_text_id=%s "
                 "source_type=%s content_hash=%s length=%s"
             ),
             correlation_id,
+            course_id,
+            source_id,
+            raw_text_id,
             imported.source.source_type.value,
             imported.content_hash,
             imported.length,

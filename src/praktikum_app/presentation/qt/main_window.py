@@ -20,9 +20,16 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from sqlalchemy.orm import Session, sessionmaker
 
+from praktikum_app.application.import_persistence import (
+    GetLatestImportedCourseUseCase,
+    PersistImportedCourseUseCase,
+)
 from praktikum_app.application.import_text_use_case import ImportCourseTextUseCase
 from praktikum_app.application.in_memory_import_store import InMemoryImportStore
+from praktikum_app.infrastructure.db.session import create_default_session_factory
+from praktikum_app.infrastructure.db.unit_of_work import SqlAlchemyImportUnitOfWork
 from praktikum_app.presentation.qt.import_dialog import ImportCourseDialog
 
 LOGGER = logging.getLogger(__name__)
@@ -41,6 +48,9 @@ class MainWindow(QMainWindow):
         self._today_hint_label: QLabel | None = None
         self._import_use_case = ImportCourseTextUseCase()
         self._import_store = InMemoryImportStore()
+        self._session_factory: sessionmaker[Session] | None = None
+        self._persist_import_use_case = PersistImportedCourseUseCase(self._create_import_uow)
+        self._latest_import_use_case = GetLatestImportedCourseUseCase(self._create_import_uow)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -139,6 +149,7 @@ class MainWindow(QMainWindow):
             dialog = ImportCourseDialog(
                 use_case=self._import_use_case,
                 store=self._import_store,
+                persist_use_case=self._persist_import_use_case,
                 parent=self,
             )
             result_code = dialog.exec()
@@ -152,13 +163,32 @@ class MainWindow(QMainWindow):
                 )
                 return
 
-            imported = self._import_store.get_latest()
-            if imported is None:
-                self.statusBar().showMessage("No import data saved.", 3000)
+            try:
+                persisted_import = self._latest_import_use_case.execute()
+            except Exception as exc:
+                LOGGER.exception(
+                    (
+                        "event=import_latest_read_failed correlation_id=%s "
+                        "course_id=- module_id=- llm_call_id=- error_type=%s"
+                    ),
+                    correlation_id,
+                    exc.__class__.__name__,
+                )
+                QMessageBox.warning(
+                    self,
+                    "Import Error",
+                    "Could not load imported data from local database.",
+                )
                 return
 
+            if persisted_import is None:
+                self.statusBar().showMessage("No import data saved to local database.", 3000)
+                return
+
+            imported = persisted_import.raw_text
+            self._import_store.save(imported)
             self.statusBar().showMessage(
-                "Text imported into temporary memory (non-persistent until PR#5).",
+                "Text imported and saved to local database.",
                 5000,
             )
             self._update_today_hint(
@@ -169,10 +199,11 @@ class MainWindow(QMainWindow):
             LOGGER.info(
                 (
                     "event=import_dialog_completed correlation_id=%s "
-                    "course_id=- module_id=- llm_call_id=- "
+                    "course_id=%s module_id=- llm_call_id=- "
                     "source_type=%s content_hash=%s length=%s"
                 ),
                 correlation_id,
+                persisted_import.course_id,
                 imported.source.source_type.value,
                 imported.content_hash,
                 imported.length,
@@ -192,6 +223,14 @@ class MainWindow(QMainWindow):
                 "Import Error",
                 "Could not complete import. Please try again.",
             )
+
+    def _create_import_uow(self) -> SqlAlchemyImportUnitOfWork:
+        session_factory = self._session_factory
+        if session_factory is None:
+            session_factory = create_default_session_factory()
+            self._session_factory = session_factory
+
+        return SqlAlchemyImportUnitOfWork(session_factory)
 
     def _update_today_hint(self, source_label: str, content_hash: str, length: int) -> None:
         if self._today_hint_label is None:
