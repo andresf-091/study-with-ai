@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from PySide6.QtWidgets import QApplication
 
@@ -39,3 +41,30 @@ def test_import_dialog_paste_flow_preview_and_continue(application: QApplication
     assert imported is not None
     assert imported.source.source_type is CourseSourceType.PASTE
     assert imported.length == len(imported.content)
+
+
+def test_import_dialog_text_file_flow_preview_and_continue(
+    application: QApplication,
+) -> None:
+    """Text file flow should load source, normalize it and save to temporary store."""
+    import_file = Path("tests") / "_import_source_runtime.md"
+    import_file.write_text("  • Lesson one\n\n* Lesson two  ", encoding="utf-8")
+    try:
+        use_case = ImportCourseTextUseCase()
+        store = InMemoryImportStore()
+        dialog = ImportCourseDialog(use_case=use_case, store=store)
+
+        dialog.set_active_source(CourseSourceType.TEXT_FILE)
+        dialog.set_file_path(str(import_file))
+        dialog.preview_import()
+
+        assert dialog.preview_text() == "- Lesson one\n\n- Lesson two"
+
+        dialog.continue_import()
+        imported = store.get_latest()
+
+        assert imported is not None
+        assert imported.source.source_type is CourseSourceType.TEXT_FILE
+        assert imported.source.filename == "_import_source_runtime.md"
+    finally:
+        import_file.unlink(missing_ok=True)
