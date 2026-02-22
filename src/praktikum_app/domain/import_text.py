@@ -12,6 +12,7 @@ class CourseSourceType(StrEnum):
 
     TEXT_FILE = "text_file"
     PASTE = "paste"
+    PDF = "pdf"
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,9 @@ class CourseSource:
     source_type: CourseSourceType
     filename: str | None
     imported_at: datetime
+    page_count: int | None = None
+    extraction_strategy: str | None = None
+    likely_scanned: bool = False
 
 
 @dataclass(frozen=True)

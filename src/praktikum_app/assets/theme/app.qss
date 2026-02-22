@@ -120,6 +120,14 @@ QPlainTextEdit {
     selection-background-color: #e2d2b5;
 }
 
+QLabel#ocrHintLabel {
+    background-color: #f0e2c8;
+    color: #523f2b;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 17px;
+}
+
 QPushButton {
     font-family: "EB Garamond";
     border: none;
