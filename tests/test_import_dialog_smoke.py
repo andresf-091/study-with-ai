@@ -5,12 +5,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from PySide6.QtWidgets import QApplication
 
 from praktikum_app.application.import_pdf_use_case import (
     ImportCoursePdfCommand,
     ImportCoursePdfResult,
 )
+from praktikum_app.application.import_persistence import PersistedImportRecord
 from praktikum_app.application.import_text_use_case import ImportCourseTextUseCase
 from praktikum_app.application.in_memory_import_store import InMemoryImportStore
 from praktikum_app.domain.import_text import CourseSource, CourseSourceType, RawCourseText
@@ -185,3 +187,76 @@ def test_import_dialog_pdf_flow_shows_ocr_hint_for_low_text(application: QApplic
     dialog.preview_import()
 
     assert "OCR may improve extraction quality" in dialog.ocr_hint_text()
+
+
+def test_import_dialog_continue_calls_persistence_use_case(application: QApplication) -> None:
+    """Continue should call persistence use-case before closing dialog."""
+
+    class FakePersistUseCase:
+        def __init__(self) -> None:
+            self.saved: RawCourseText | None = None
+
+        def execute(self, imported_text: RawCourseText) -> PersistedImportRecord:
+            self.saved = imported_text
+            return PersistedImportRecord(
+                course_id="course-1",
+                source_id="source-1",
+                raw_text_id="raw-1",
+                raw_text=imported_text,
+            )
+
+    persist_use_case = FakePersistUseCase()
+    use_case = ImportCourseTextUseCase()
+    store = InMemoryImportStore()
+    dialog = ImportCourseDialog(
+        use_case=use_case,
+        store=store,
+        persist_use_case=persist_use_case,
+    )
+
+    dialog.set_active_source(CourseSourceType.PASTE)
+    dialog.set_paste_text("Persist this import")
+    dialog.preview_import()
+    dialog.continue_import()
+
+    assert persist_use_case.saved is not None
+    assert persist_use_case.saved.content == "Persist this import"
+    assert dialog.result() == dialog.DialogCode.Accepted
+
+
+def test_import_dialog_shows_message_when_persistence_fails(
+    application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persistence failure should keep dialog open and show concise user message."""
+
+    class FailingPersistUseCase:
+        def execute(self, imported_text: RawCourseText) -> PersistedImportRecord:
+            raise RuntimeError("database unavailable")
+
+    warnings: list[str] = []
+
+    def _fake_warning(*_: object) -> int:
+        warnings.append("shown")
+        return 0
+
+    monkeypatch.setattr(
+        "praktikum_app.presentation.qt.import_dialog.QMessageBox.warning",
+        _fake_warning,
+    )
+
+    use_case = ImportCourseTextUseCase()
+    store = InMemoryImportStore()
+    dialog = ImportCourseDialog(
+        use_case=use_case,
+        store=store,
+        persist_use_case=FailingPersistUseCase(),
+    )
+    dialog.set_active_source(CourseSourceType.PASTE)
+    dialog.set_paste_text("DB error sample")
+    dialog.preview_import()
+    dialog.continue_import()
+
+    assert warnings == ["shown"]
+    assert store.get_latest() is None
+    assert dialog.result() != dialog.DialogCode.Accepted
