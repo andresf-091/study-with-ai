@@ -43,6 +43,7 @@ class ImportCourseDialog(QDialog):
         self._use_case = use_case
         self._store = store
         self._latest_preview: RawCourseText | None = None
+        self._is_preview_dirty = True
 
         self._tabs = QTabWidget(self)
         self._file_path_input = QLineEdit(self)
@@ -87,6 +88,8 @@ class ImportCourseDialog(QDialog):
         self._continue_button.clicked.connect(self.continue_import)
         self._cancel_button.clicked.connect(self.reject)
         self._continue_button.setEnabled(False)
+        self._file_path_input.textChanged.connect(self._on_file_path_changed)
+        self._paste_input.textChanged.connect(self._on_paste_text_changed)
 
     def _build_file_tab(self) -> QWidget:
         tab = QWidget(self)
@@ -135,9 +138,13 @@ class ImportCourseDialog(QDialog):
             self._file_path_input.setText(file_path)
 
     def _on_source_changed(self, _: int) -> None:
-        self._latest_preview = None
-        self._continue_button.setEnabled(False)
-        self._preview_output.clear()
+        self._invalidate_preview(reason="source_changed")
+
+    def _on_file_path_changed(self, _: str) -> None:
+        self._invalidate_preview(reason="file_path_changed")
+
+    def _on_paste_text_changed(self) -> None:
+        self._invalidate_preview(reason="paste_text_changed")
 
     def set_active_source(self, source_type: CourseSourceType) -> None:
         """Select source tab programmatically for tests."""
@@ -160,6 +167,10 @@ class ImportCourseDialog(QDialog):
         """Return current preview result."""
         return self._latest_preview
 
+    def is_preview_dirty(self) -> bool:
+        """Return whether preview is outdated relative to current input."""
+        return self._is_preview_dirty
+
     def preview_import(self) -> None:
         """Generate normalized preview from selected source."""
         correlation_id = str(uuid4())
@@ -168,9 +179,7 @@ class ImportCourseDialog(QDialog):
             command = self._build_command()
             result = self._use_case.execute(command)
         except Exception as exc:
-            self._latest_preview = None
-            self._continue_button.setEnabled(False)
-            self._preview_output.clear()
+            self._invalidate_preview(reason="preview_failed")
             LOGGER.exception(
                 (
                     "event=import_preview_failed correlation_id=%s "
@@ -189,6 +198,7 @@ class ImportCourseDialog(QDialog):
             return
 
         self._latest_preview = result
+        self._is_preview_dirty = False
         self._continue_button.setEnabled(True)
         self._preview_output.setPlainText(result.content)
         LOGGER.info(
@@ -205,9 +215,9 @@ class ImportCourseDialog(QDialog):
 
     def continue_import(self) -> None:
         """Persist preview result in temporary in-memory store and close dialog."""
-        if self._latest_preview is None:
+        if self._latest_preview is None or self._is_preview_dirty:
             self.preview_import()
-            if self._latest_preview is None:
+            if self._latest_preview is None or self._is_preview_dirty:
                 return
 
         correlation_id = str(uuid4())
@@ -226,6 +236,26 @@ class ImportCourseDialog(QDialog):
             imported.length,
         )
         self.accept()
+
+    def _invalidate_preview(self, reason: str) -> None:
+        """Mark preview as stale after source changes."""
+        if self._latest_preview is None and self._is_preview_dirty:
+            return
+
+        correlation_id = str(uuid4())
+        self._latest_preview = None
+        self._is_preview_dirty = True
+        self._continue_button.setEnabled(False)
+        self._preview_output.clear()
+        LOGGER.info(
+            (
+                "event=import_preview_invalidated correlation_id=%s "
+                "course_id=- module_id=- llm_call_id=- reason=%s source_type=%s"
+            ),
+            correlation_id,
+            reason,
+            self._active_source_type().value,
+        )
 
     def _active_source_type(self) -> CourseSourceType:
         return (
