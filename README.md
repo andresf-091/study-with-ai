@@ -43,19 +43,51 @@ praktikum-app
 - Open the main window and click `Import course...`.
 - Use `Text file` tab for local `.txt` / `.md` sources or `Paste` tab for direct text.
 - Click `Preview` to run normalization and inspect the result.
-- Click `Continue` to save the normalized text into process memory.
+- Click `Continue` to save the normalized text into local SQLite storage.
 
 Temporary storage note:
-- Imported text is stored only in an in-memory container for the current app process.
-- Persistence to database is planned in PR#5.
+- The app keeps a transient in-memory cache for current UI state.
+- Source of truth for imported text is the local SQLite database.
 
 ## PDF Import Flow (PR#4)
 
 - Open the `Import course...` dialog and use the `PDF` tab.
 - Select a local `.pdf` file and click `Preview`.
 - Text extraction runs with primary strategy (`pypdf`) and fallback (`pdfminer.six`) when quality is low.
-- Click `Continue` to save normalized extracted text into process memory.
+- Click `Continue` to save normalized extracted text into local SQLite storage.
 - If the PDF appears scan-like or low-text, the dialog shows a short OCR hint.
+
+## Database and Migrations (PR#5)
+
+- Default local DB path: `~/.study-with-ai/study_with_ai.db`
+- Optional override via environment variable: `PRAKTIKUM_DB_PATH`
+
+Apply migrations:
+
+```bash
+# Linux/macOS
+alembic upgrade head
+
+# Windows PowerShell
+.\.venv\Scripts\alembic.exe upgrade head
+```
+
+Optional custom DB path:
+
+```bash
+# Linux/macOS
+PRAKTIKUM_DB_PATH=/tmp/study_with_ai.db alembic upgrade head
+
+# Windows PowerShell
+$env:PRAKTIKUM_DB_PATH = "$PWD\\study_with_ai.db"
+.\.venv\Scripts\alembic.exe upgrade head
+```
+
+Verify import persistence:
+
+- Run migrations (`alembic upgrade head`).
+- Start app and complete `Import course... -> Preview -> Continue`.
+- Import is persisted to SQLite; in-memory store is retained only as transient UI cache.
 
 ## Theme and Typography
 
@@ -89,11 +121,12 @@ $env:QT_QPA_PLATFORM='offscreen'; python -m pytest
 - In CI/headless (`QT_QPA_PLATFORM=offscreen`) tray can be unavailable; the app
   gracefully falls back to status-bar messages instead of failing.
 
-## Current Limitations (PR#4)
+## Current Limitations (PR#5)
 
 - OCR engine is not embedded (hint only for scan-like PDFs).
 - No LLM parsing/decomposition yet.
-- No DB persistence yet (in-memory only).
+- No course decomposition/practice/reminders persistence flows yet.
+- `llm_calls`, `modules`, and `deadlines` schema exists but is not actively used yet.
 
 ## Pre-commit
 
