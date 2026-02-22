@@ -4,22 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from PySide6.QtWidgets import QApplication
 
 from praktikum_app.application.import_text_use_case import ImportCourseTextUseCase
 from praktikum_app.application.in_memory_import_store import InMemoryImportStore
 from praktikum_app.domain.import_text import CourseSourceType
-from praktikum_app.presentation.qt.app import create_application
 from praktikum_app.presentation.qt.import_dialog import ImportCourseDialog
-
-
-@pytest.fixture
-def application(monkeypatch: pytest.MonkeyPatch) -> QApplication:
-    """Create QApplication using offscreen backend for UI tests."""
-    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    app = create_application([])
-    yield app
 
 
 def test_import_dialog_paste_flow_preview_and_continue(application: QApplication) -> None:
