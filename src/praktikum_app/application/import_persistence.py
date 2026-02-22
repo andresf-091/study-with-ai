@@ -5,11 +5,12 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from types import TracebackType
 from typing import Protocol
 from uuid import uuid4
 
-from praktikum_app.domain.import_text import RawCourseText
+from praktikum_app.domain.import_text import CourseSourceType, RawCourseText
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +25,18 @@ class PersistedImportRecord:
     raw_text: RawCourseText
 
 
+@dataclass(frozen=True)
+class ImportedCourseSummary:
+    """Compact persisted course info for course list UI."""
+
+    course_id: str
+    source_type: CourseSourceType
+    filename: str | None
+    imported_at: datetime
+    length: int
+    content_hash: str
+
+
 class ImportedCourseRepository(Protocol):
     """Repository port for persisted imported text."""
 
@@ -33,6 +46,14 @@ class ImportedCourseRepository(Protocol):
 
     def get_latest_imported_text(self) -> PersistedImportRecord | None:
         """Return latest persisted imported text."""
+        ...
+
+    def list_imported_courses(self) -> list[ImportedCourseSummary]:
+        """Return persisted imported courses ordered by newest first."""
+        ...
+
+    def delete_course(self, course_id: str) -> bool:
+        """Delete course with related import data."""
         ...
 
 
@@ -146,3 +167,69 @@ class GetLatestImportedCourseUseCase:
             record.raw_text.length,
         )
         return record
+
+
+class ListImportedCoursesUseCase:
+    """Read all imported courses from persistence."""
+
+    def __init__(self, uow_factory: ImportUnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
+
+    def execute(self) -> list[ImportedCourseSummary]:
+        """Return imported course summaries sorted by latest import timestamp."""
+        correlation_id = str(uuid4())
+        with self._uow_factory() as uow:
+            items = uow.imports.list_imported_courses()
+
+        LOGGER.info(
+            (
+                "event=import_courses_listed correlation_id=%s course_id=- module_id=- "
+                "llm_call_id=- items_count=%s"
+            ),
+            correlation_id,
+            len(items),
+        )
+        return items
+
+
+class DeleteImportedCourseUseCase:
+    """Delete persisted course and related import data."""
+
+    def __init__(self, uow_factory: ImportUnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
+
+    def execute(self, course_id: str) -> bool:
+        """Delete course by id. Returns True when course existed and was deleted."""
+        if not course_id:
+            raise ValueError("course_id is required")
+
+        correlation_id = str(uuid4())
+        try:
+            with self._uow_factory() as uow:
+                deleted = uow.imports.delete_course(course_id)
+                if deleted:
+                    uow.commit()
+                else:
+                    uow.rollback()
+        except Exception as exc:
+            LOGGER.exception(
+                (
+                    "event=import_course_delete_failed correlation_id=%s course_id=%s "
+                    "module_id=- llm_call_id=- error_type=%s"
+                ),
+                correlation_id,
+                course_id,
+                exc.__class__.__name__,
+            )
+            raise
+
+        LOGGER.info(
+            (
+                "event=import_course_delete_completed correlation_id=%s course_id=%s "
+                "module_id=- llm_call_id=- deleted=%s"
+            ),
+            correlation_id,
+            course_id,
+            deleted,
+        )
+        return deleted

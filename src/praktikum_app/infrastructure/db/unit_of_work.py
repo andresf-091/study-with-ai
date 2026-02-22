@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from praktikum_app.application.import_persistence import (
     ImportedCourseRepository,
+    ImportedCourseSummary,
     ImportUnitOfWork,
     PersistedImportRecord,
 )
@@ -22,6 +23,12 @@ class _UninitializedRepository(ImportedCourseRepository):
         raise RuntimeError("Unit of work is not active.")
 
     def get_latest_imported_text(self) -> PersistedImportRecord | None:
+        raise RuntimeError("Unit of work is not active.")
+
+    def list_imported_courses(self) -> list[ImportedCourseSummary]:
+        raise RuntimeError("Unit of work is not active.")
+
+    def delete_course(self, course_id: str) -> bool:
         raise RuntimeError("Unit of work is not active.")
 
 
