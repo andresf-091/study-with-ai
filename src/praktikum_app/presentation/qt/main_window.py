@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QDialog,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -14,10 +15,15 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+from praktikum_app.application.import_text_use_case import ImportCourseTextUseCase
+from praktikum_app.application.in_memory_import_store import InMemoryImportStore
+from praktikum_app.presentation.qt.import_dialog import ImportCourseDialog
 
 LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +38,9 @@ class MainWindow(QMainWindow):
         self._modules_list = QListWidget()
         self._today_list = QListWidget()
         self._import_button = QPushButton("Import course...")
+        self._today_hint_label: QLabel | None = None
+        self._import_use_case = ImportCourseTextUseCase()
+        self._import_store = InMemoryImportStore()
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -104,6 +113,7 @@ class MainWindow(QMainWindow):
         )
         today_hint.setObjectName("todayHintLabel")
         today_hint.setWordWrap(True)
+        self._today_hint_label = today_hint
         panel_layout.addWidget(today_hint)
 
         self._today_list.setObjectName("todayList")
@@ -125,6 +135,69 @@ class MainWindow(QMainWindow):
             "event=import_course_clicked correlation_id=%s course_id=- module_id=- llm_call_id=-",
             correlation_id,
         )
-        self.statusBar().showMessage(
-            "Import flow will be implemented in a next PR.", 3000
+        try:
+            dialog = ImportCourseDialog(
+                use_case=self._import_use_case,
+                store=self._import_store,
+                parent=self,
+            )
+            result_code = dialog.exec()
+            if result_code != QDialog.DialogCode.Accepted:
+                LOGGER.info(
+                    (
+                        "event=import_dialog_cancelled correlation_id=%s "
+                        "course_id=- module_id=- llm_call_id=-"
+                    ),
+                    correlation_id,
+                )
+                return
+
+            imported = self._import_store.get_latest()
+            if imported is None:
+                self.statusBar().showMessage("No import data saved.", 3000)
+                return
+
+            self.statusBar().showMessage(
+                "Text imported into temporary memory (non-persistent until PR#5).",
+                5000,
+            )
+            self._update_today_hint(
+                source_label=imported.source.filename or imported.source.source_type.value,
+                content_hash=imported.content_hash,
+                length=imported.length,
+            )
+            LOGGER.info(
+                (
+                    "event=import_dialog_completed correlation_id=%s "
+                    "course_id=- module_id=- llm_call_id=- "
+                    "source_type=%s content_hash=%s length=%s"
+                ),
+                correlation_id,
+                imported.source.source_type.value,
+                imported.content_hash,
+                imported.length,
+            )
+        except Exception as exc:
+            LOGGER.exception(
+                (
+                    "event=import_dialog_failed correlation_id=%s "
+                    "course_id=- module_id=- llm_call_id=- "
+                    "error_type=%s"
+                ),
+                correlation_id,
+                exc.__class__.__name__,
+            )
+            QMessageBox.warning(
+                self,
+                "Import Error",
+                "Could not complete import. Please try again.",
+            )
+
+    def _update_today_hint(self, source_label: str, content_hash: str, length: int) -> None:
+        if self._today_hint_label is None:
+            return
+
+        short_hash = content_hash[:10]
+        self._today_hint_label.setText(
+            f"Imported source: {source_label}\nLength: {length} chars | Hash: {short_hash}"
         )

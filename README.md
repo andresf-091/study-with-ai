@@ -38,6 +38,17 @@ or:
 praktikum-app
 ```
 
+## Text Import Flow (PR#3)
+
+- Open the main window and click `Import course...`.
+- Use `Text file` tab for local `.txt` / `.md` sources or `Paste` tab for direct text.
+- Click `Preview` to run normalization and inspect the result.
+- Click `Continue` to save the normalized text into process memory.
+
+Temporary storage note:
+- Imported text is stored only in an in-memory container for the current app process.
+- Persistence to database is planned in PR#5.
+
 ## Theme and Typography
 
 - QSS theme file: `src/praktikum_app/assets/theme/app.qss`
@@ -69,6 +80,12 @@ $env:QT_QPA_PLATFORM='offscreen'; python -m pytest
   system tray support.
 - In CI/headless (`QT_QPA_PLATFORM=offscreen`) tray can be unavailable; the app
   gracefully falls back to status-bar messages instead of failing.
+
+## Current Limitations (PR#3)
+
+- No PDF/OCR import yet.
+- No LLM parsing/decomposition yet.
+- No DB persistence yet (in-memory only).
 
 ## Pre-commit
 

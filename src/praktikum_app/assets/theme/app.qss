@@ -92,6 +92,34 @@ QListWidget::item:selected {
     color: #2a2319;
 }
 
+QTabWidget::pane {
+    border: none;
+    background-color: transparent;
+}
+
+QTabBar::tab {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-right: 6px;
+    background-color: #e7d8bd;
+    color: #2f271c;
+    font-size: 17px;
+}
+
+QTabBar::tab:selected {
+    background-color: #decba9;
+}
+
+QLineEdit,
+QPlainTextEdit {
+    border: none;
+    border-radius: 8px;
+    background-color: #f8f1e1;
+    padding: 8px 10px;
+    selection-background-color: #e2d2b5;
+}
+
 QPushButton {
     font-family: "EB Garamond";
     border: none;

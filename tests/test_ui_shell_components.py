@@ -5,18 +5,9 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QApplication, QLabel, QListWidget, QPushButton
 
-from praktikum_app.presentation.qt.app import create_application
 from praktikum_app.presentation.qt.main_window import MainWindow
 from praktikum_app.presentation.qt.theme import apply_theme
 from praktikum_app.presentation.qt.tray import TrayController
-
-
-@pytest.fixture
-def application(monkeypatch: pytest.MonkeyPatch) -> QApplication:
-    """Create QApplication using offscreen backend for UI component tests."""
-    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    app = create_application([])
-    yield app
 
 
 def test_main_window_has_target_shell_components(application: QApplication) -> None:
