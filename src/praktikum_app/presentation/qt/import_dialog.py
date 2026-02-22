@@ -20,6 +20,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from praktikum_app.application.import_pdf_use_case import (
+    ImportCoursePdfCommand,
+    ImportCoursePdfUseCase,
+)
 from praktikum_app.application.import_text_use_case import (
     ImportCourseTextCommand,
     ImportCourseTextUseCase,
@@ -37,10 +41,12 @@ class ImportCourseDialog(QDialog):
         self,
         use_case: ImportCourseTextUseCase,
         store: InMemoryImportStore,
+        pdf_use_case: ImportCoursePdfUseCase | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._use_case = use_case
+        self._pdf_use_case = pdf_use_case or ImportCoursePdfUseCase()
         self._store = store
         self._latest_preview: RawCourseText | None = None
         self._is_preview_dirty = True
@@ -48,10 +54,12 @@ class ImportCourseDialog(QDialog):
         self._tabs = QTabWidget(self)
         self._file_path_input = QLineEdit(self)
         self._paste_input = QPlainTextEdit(self)
+        self._pdf_path_input = QLineEdit(self)
         self._preview_output = QPlainTextEdit(self)
         self._preview_button = QPushButton("Preview", self)
         self._continue_button = QPushButton("Continue", self)
         self._cancel_button = QPushButton("Cancel", self)
+        self._ocr_hint_label = QLabel(self)
 
         self._build_ui()
 
@@ -66,6 +74,7 @@ class ImportCourseDialog(QDialog):
         self._tabs.setObjectName("importSourceTabs")
         self._tabs.addTab(self._build_file_tab(), "Text file")
         self._tabs.addTab(self._build_paste_tab(), "Paste")
+        self._tabs.addTab(self._build_pdf_tab(), "PDF")
         self._tabs.currentChanged.connect(self._on_source_changed)
         root_layout.addWidget(self._tabs)
 
@@ -76,6 +85,10 @@ class ImportCourseDialog(QDialog):
         self._preview_output.setReadOnly(True)
         self._preview_output.setPlaceholderText("Preview will appear here after clicking Preview.")
         root_layout.addWidget(self._preview_output, stretch=1)
+        self._ocr_hint_label.setObjectName("ocrHintLabel")
+        self._ocr_hint_label.setWordWrap(True)
+        self._ocr_hint_label.setVisible(False)
+        root_layout.addWidget(self._ocr_hint_label)
 
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self._preview_button)
@@ -90,6 +103,7 @@ class ImportCourseDialog(QDialog):
         self._continue_button.setEnabled(False)
         self._file_path_input.textChanged.connect(self._on_file_path_changed)
         self._paste_input.textChanged.connect(self._on_paste_text_changed)
+        self._pdf_path_input.textChanged.connect(self._on_pdf_path_changed)
 
     def _build_file_tab(self) -> QWidget:
         tab = QWidget(self)
@@ -127,6 +141,27 @@ class ImportCourseDialog(QDialog):
         layout.addWidget(self._paste_input, stretch=1)
         return tab
 
+    def _build_pdf_tab(self) -> QWidget:
+        tab = QWidget(self)
+        layout = QVBoxLayout(tab)
+        layout.setSpacing(8)
+
+        hint = QLabel("Choose a local .pdf file.", tab)
+        layout.addWidget(hint)
+
+        file_row = QHBoxLayout()
+        self._pdf_path_input.setObjectName("importPdfPathInput")
+        self._pdf_path_input.setPlaceholderText("Path to PDF file")
+        browse_button = QPushButton("Browse...", tab)
+        browse_button.setObjectName("importPdfBrowseButton")
+        browse_button.clicked.connect(self._on_browse_pdf_clicked)
+
+        file_row.addWidget(self._pdf_path_input, stretch=1)
+        file_row.addWidget(browse_button)
+        layout.addLayout(file_row)
+        layout.addStretch(1)
+        return tab
+
     def _on_browse_file_clicked(self) -> None:
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -137,6 +172,16 @@ class ImportCourseDialog(QDialog):
         if file_path:
             self._file_path_input.setText(file_path)
 
+    def _on_browse_pdf_clicked(self) -> None:
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select PDF file",
+            "",
+            "PDF files (*.pdf);;All files (*)",
+        )
+        if file_path:
+            self._pdf_path_input.setText(file_path)
+
     def _on_source_changed(self, _: int) -> None:
         self._invalidate_preview(reason="source_changed")
 
@@ -146,9 +191,17 @@ class ImportCourseDialog(QDialog):
     def _on_paste_text_changed(self) -> None:
         self._invalidate_preview(reason="paste_text_changed")
 
+    def _on_pdf_path_changed(self, _: str) -> None:
+        self._invalidate_preview(reason="pdf_path_changed")
+
     def set_active_source(self, source_type: CourseSourceType) -> None:
         """Select source tab programmatically for tests."""
-        index = 0 if source_type is CourseSourceType.TEXT_FILE else 1
+        index_by_source = {
+            CourseSourceType.TEXT_FILE: 0,
+            CourseSourceType.PASTE: 1,
+            CourseSourceType.PDF: 2,
+        }
+        index = index_by_source[source_type]
         self._tabs.setCurrentIndex(index)
 
     def set_file_path(self, file_path: str) -> None:
@@ -158,6 +211,10 @@ class ImportCourseDialog(QDialog):
     def set_paste_text(self, text: str) -> None:
         """Set pasted source text programmatically for tests."""
         self._paste_input.setPlainText(text)
+
+    def set_pdf_path(self, file_path: str) -> None:
+        """Set selected PDF path programmatically for tests."""
+        self._pdf_path_input.setText(file_path)
 
     def preview_text(self) -> str:
         """Return current preview text."""
@@ -171,12 +228,27 @@ class ImportCourseDialog(QDialog):
         """Return whether preview is outdated relative to current input."""
         return self._is_preview_dirty
 
+    def ocr_hint_text(self) -> str:
+        """Return current OCR hint text when visible."""
+        return self._ocr_hint_label.text()
+
     def preview_import(self) -> None:
         """Generate normalized preview from selected source."""
         correlation_id = str(uuid4())
         source_type = self._active_source_type()
+        if source_type is CourseSourceType.PDF:
+            self._preview_pdf_import(correlation_id=correlation_id)
+            return
+
+        self._preview_text_import(correlation_id=correlation_id, source_type=source_type)
+
+    def _preview_text_import(
+        self,
+        correlation_id: str,
+        source_type: CourseSourceType,
+    ) -> None:
         try:
-            command = self._build_command()
+            command = self._build_text_command(source_type=source_type)
             result = self._use_case.execute(command)
         except Exception as exc:
             self._invalidate_preview(reason="preview_failed")
@@ -197,10 +269,8 @@ class ImportCourseDialog(QDialog):
             )
             return
 
-        self._latest_preview = result
-        self._is_preview_dirty = False
-        self._continue_button.setEnabled(True)
-        self._preview_output.setPlainText(result.content)
+        self._apply_preview_result(result=result)
+        self._set_ocr_hint(is_likely_scanned=False)
         LOGGER.info(
             (
                 "event=import_preview_ready correlation_id=%s "
@@ -211,6 +281,42 @@ class ImportCourseDialog(QDialog):
             result.source.source_type.value,
             result.content_hash,
             result.length,
+        )
+
+    def _preview_pdf_import(self, correlation_id: str) -> None:
+        try:
+            command = ImportCoursePdfCommand(pdf_path=self._pdf_path_input.text().strip())
+            result = self._pdf_use_case.execute(command)
+        except Exception as exc:
+            self._invalidate_preview(reason="pdf_preview_failed")
+            LOGGER.exception(
+                (
+                    "event=import_pdf_preview_failed correlation_id=%s "
+                    "course_id=- module_id=- llm_call_id=- "
+                    "error_type=%s"
+                ),
+                correlation_id,
+                exc.__class__.__name__,
+            )
+            message = str(exc) if isinstance(exc, ValueError) else "Could not prepare PDF preview."
+            QMessageBox.warning(self, "Import Error", message)
+            return
+
+        self._apply_preview_result(result=result.raw_text)
+        self._set_ocr_hint(is_likely_scanned=result.likely_scanned)
+        LOGGER.info(
+            (
+                "event=import_pdf_preview_ready correlation_id=%s "
+                "course_id=- module_id=- llm_call_id=- extraction_strategy=%s "
+                "page_count=%s used_fallback=%s likely_scanned=%s content_hash=%s length=%s"
+            ),
+            correlation_id,
+            result.extraction_strategy,
+            result.page_count,
+            result.used_fallback,
+            result.likely_scanned,
+            result.raw_text.content_hash,
+            result.raw_text.length,
         )
 
     def continue_import(self) -> None:
@@ -247,6 +353,7 @@ class ImportCourseDialog(QDialog):
         self._is_preview_dirty = True
         self._continue_button.setEnabled(False)
         self._preview_output.clear()
+        self._set_ocr_hint(is_likely_scanned=False)
         LOGGER.info(
             (
                 "event=import_preview_invalidated correlation_id=%s "
@@ -261,11 +368,14 @@ class ImportCourseDialog(QDialog):
         return (
             CourseSourceType.TEXT_FILE
             if self._tabs.currentIndex() == 0
-            else CourseSourceType.PASTE
+            else (
+                CourseSourceType.PASTE
+                if self._tabs.currentIndex() == 1
+                else CourseSourceType.PDF
+            )
         )
 
-    def _build_command(self) -> ImportCourseTextCommand:
-        source_type = self._active_source_type()
+    def _build_text_command(self, source_type: CourseSourceType) -> ImportCourseTextCommand:
         if source_type is CourseSourceType.TEXT_FILE:
             file_path = self._file_path_input.text().strip()
             file_content = _read_text_file(file_path)
@@ -281,6 +391,23 @@ class ImportCourseDialog(QDialog):
             content=paste_content,
             filename=None,
         )
+
+    def _apply_preview_result(self, result: RawCourseText) -> None:
+        self._latest_preview = result
+        self._is_preview_dirty = False
+        self._continue_button.setEnabled(True)
+        self._preview_output.setPlainText(result.content)
+
+    def _set_ocr_hint(self, is_likely_scanned: bool) -> None:
+        if not is_likely_scanned:
+            self._ocr_hint_label.setVisible(False)
+            self._ocr_hint_label.clear()
+            return
+
+        self._ocr_hint_label.setText(
+            "This PDF looks scan-like or low-text. OCR may improve extraction quality."
+        )
+        self._ocr_hint_label.setVisible(True)
 
 
 def _read_text_file(file_path: str) -> str:
