@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from praktikum_app.application.import_pdf_use_case import (
     ImportCoursePdfCommand,
@@ -186,7 +186,20 @@ def test_import_dialog_pdf_flow_shows_ocr_hint_for_low_text(application: QApplic
     dialog.set_pdf_path("scan_like.pdf")
     dialog.preview_import()
 
-    assert "OCR may improve extraction quality" in dialog.ocr_hint_text()
+    assert "OCR может улучшить результат" in dialog.ocr_hint_text()
+
+
+def test_import_dialog_uses_russian_user_facing_strings(application: QApplication) -> None:
+    """Import dialog should expose key user-facing strings in Russian."""
+    use_case = ImportCourseTextUseCase()
+    store = InMemoryImportStore()
+    dialog = ImportCourseDialog(use_case=use_case, store=store)
+
+    assert dialog.windowTitle() == "Импорт курса"
+    button_texts = {button.text() for button in dialog.findChildren(QPushButton)}
+    assert "Предпросмотр" in button_texts
+    assert "Продолжить" in button_texts
+    assert "Отмена" in button_texts
 
 
 def test_import_dialog_continue_calls_persistence_use_case(application: QApplication) -> None:

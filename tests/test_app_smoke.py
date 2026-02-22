@@ -14,7 +14,7 @@ def test_main_window_startup_and_close(application: QApplication) -> None:
     application.processEvents()
 
     assert window.isVisible()
-    assert window.windowTitle() == "Study with AI"
+    assert window.windowTitle() == "Текущие курсы"
 
     window.close()
     application.processEvents()

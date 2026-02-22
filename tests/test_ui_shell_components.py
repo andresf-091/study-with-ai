@@ -11,21 +11,26 @@ from praktikum_app.presentation.qt.tray import TrayController
 
 
 def test_main_window_has_target_shell_components(application: QApplication) -> None:
-    """Main window should expose placeholder modules, today panel and import button."""
+    """Main window should expose courses list and action panel widgets."""
     window = MainWindow()
 
-    modules_list = window.findChild(QListWidget, "modulesList")
-    today_list = window.findChild(QListWidget, "todayList")
+    courses_list = window.findChild(QListWidget, "coursesList")
     import_button = window.findChild(QPushButton, "importCourseButton")
-    today_hint = window.findChild(QLabel, "todayHintLabel")
+    refresh_button = window.findChild(QPushButton, "refreshCoursesButton")
+    delete_button = window.findChild(QPushButton, "deleteCourseButton")
+    details_label = window.findChild(QLabel, "todayHintLabel")
+    empty_label = window.findChild(QLabel, "coursesEmptyStateLabel")
 
-    assert modules_list is not None
-    assert modules_list.count() == 3
-    assert today_list is not None
-    assert today_list.count() == 3
+    assert window.windowTitle() == "Текущие курсы"
+    assert courses_list is not None
     assert import_button is not None
-    assert import_button.text() == "Import course..."
-    assert today_hint is not None
+    assert import_button.text() == "Импортировать курс..."
+    assert refresh_button is not None
+    assert refresh_button.text() == "Обновить из БД"
+    assert delete_button is not None
+    assert delete_button.text() == "Удалить выбранный курс"
+    assert details_label is not None
+    assert empty_label is not None
 
 
 def test_theme_application_loads_stylesheet(application: QApplication) -> None:
@@ -46,8 +51,8 @@ def test_tray_controller_graceful_fallback(
 
     monkeypatch.setattr(controller, "_is_system_tray_available", lambda: False)
     controller.initialize()
-    delivered_to_tray = controller.notify("Reminder", "Practice session in 10 minutes")
+    delivered_to_tray = controller.notify("Напоминание", "Практика начнётся через 10 минут")
 
     assert controller.is_enabled is False
     assert delivered_to_tray is False
-    assert "Reminder" in window.statusBar().currentMessage()
+    assert "Напоминание" in window.statusBar().currentMessage()

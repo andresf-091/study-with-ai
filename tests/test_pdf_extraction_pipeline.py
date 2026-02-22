@@ -101,7 +101,7 @@ def test_import_pdf_use_case_rejects_non_pdf_file() -> None:
     runtime_text.write_text("not a pdf", encoding="utf-8")
     try:
         use_case = ImportCoursePdfUseCase()
-        with pytest.raises(ValueError, match="Unsupported file type"):
+        with pytest.raises(ValueError, match="Неподдерживаемый тип файла"):
             use_case.execute(ImportCoursePdfCommand(pdf_path=str(runtime_text)))
     finally:
         runtime_text.unlink(missing_ok=True)

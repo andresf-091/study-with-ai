@@ -10,7 +10,9 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from praktikum_app.application.import_persistence import (
+    DeleteImportedCourseUseCase,
     GetLatestImportedCourseUseCase,
+    ListImportedCoursesUseCase,
     PersistImportedCourseUseCase,
 )
 from praktikum_app.domain.import_text import CourseSource, CourseSourceType, RawCourseText
@@ -96,6 +98,86 @@ def test_get_latest_import_returns_none_for_empty_database() -> None:
         db_path.unlink(missing_ok=True)
 
 
+def test_list_imported_courses_returns_newest_first() -> None:
+    db_path = Path("tests") / f"_runtime_import_list_{uuid4().hex}.db"
+    session_factory, engine = _create_test_session_factory(db_path)
+    try:
+        persist_use_case = PersistImportedCourseUseCase(
+            lambda: SqlAlchemyImportUnitOfWork(session_factory),
+        )
+        list_use_case = ListImportedCoursesUseCase(
+            lambda: SqlAlchemyImportUnitOfWork(session_factory),
+        )
+
+        older = _make_raw_text(
+            source_type=CourseSourceType.TEXT_FILE,
+            content="Older import",
+            content_hash="old-hash",
+            filename="old.md",
+            imported_at=datetime(2026, 2, 21, 10, 0, tzinfo=UTC),
+        )
+        newer = _make_raw_text(
+            source_type=CourseSourceType.PDF,
+            content="Newer import",
+            content_hash="new-hash",
+            filename="new.pdf",
+            imported_at=datetime(2026, 2, 22, 10, 0, tzinfo=UTC),
+        )
+        persist_use_case.execute(older)
+        persist_use_case.execute(newer)
+
+        courses = list_use_case.execute()
+        assert len(courses) == 2
+        assert courses[0].filename == "new.pdf"
+        assert courses[1].filename == "old.md"
+    finally:
+        engine.dispose()
+        db_path.unlink(missing_ok=True)
+
+
+def test_delete_course_removes_it_from_list() -> None:
+    db_path = Path("tests") / f"_runtime_import_delete_{uuid4().hex}.db"
+    session_factory, engine = _create_test_session_factory(db_path)
+    try:
+        persist_use_case = PersistImportedCourseUseCase(
+            lambda: SqlAlchemyImportUnitOfWork(session_factory),
+        )
+        list_use_case = ListImportedCoursesUseCase(
+            lambda: SqlAlchemyImportUnitOfWork(session_factory),
+        )
+        delete_use_case = DeleteImportedCourseUseCase(
+            lambda: SqlAlchemyImportUnitOfWork(session_factory),
+        )
+
+        imported = _make_raw_text(
+            source_type=CourseSourceType.PASTE,
+            content="Delete me",
+            content_hash="delete-hash",
+            filename=None,
+        )
+        persisted = persist_use_case.execute(imported)
+
+        assert len(list_use_case.execute()) == 1
+        assert delete_use_case.execute(persisted.course_id) is True
+        assert list_use_case.execute() == []
+    finally:
+        engine.dispose()
+        db_path.unlink(missing_ok=True)
+
+
+def test_delete_course_returns_false_for_unknown_id() -> None:
+    db_path = Path("tests") / f"_runtime_import_delete_unknown_{uuid4().hex}.db"
+    session_factory, engine = _create_test_session_factory(db_path)
+    try:
+        delete_use_case = DeleteImportedCourseUseCase(
+            lambda: SqlAlchemyImportUnitOfWork(session_factory),
+        )
+        assert delete_use_case.execute("missing-course-id") is False
+    finally:
+        engine.dispose()
+        db_path.unlink(missing_ok=True)
+
+
 def _create_test_session_factory(database_path: Path) -> tuple[sessionmaker[Session], Engine]:
     engine = create_sqlite_engine(database_path)
     Base.metadata.create_all(engine)
@@ -107,15 +189,16 @@ def _make_raw_text(
     content: str,
     content_hash: str,
     filename: str | None,
+    imported_at: datetime | None = None,
     page_count: int | None = None,
     extraction_strategy: str | None = None,
     likely_scanned: bool = False,
 ) -> RawCourseText:
-    imported_at = datetime(2026, 2, 22, 12, 0, tzinfo=UTC)
+    imported_at_value = imported_at or datetime(2026, 2, 22, 12, 0, tzinfo=UTC)
     source = CourseSource(
         source_type=source_type,
         filename=filename,
-        imported_at=imported_at,
+        imported_at=imported_at_value,
         page_count=page_count,
         extraction_strategy=extraction_strategy,
         likely_scanned=likely_scanned,
