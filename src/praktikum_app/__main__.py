@@ -23,7 +23,7 @@ def main() -> int:
             "event=app_start_failed correlation_id=%s course_id=- module_id=- llm_call_id=-",
             correlation_id,
         )
-        print(f"The application could not start. correlation_id={correlation_id}")
+        print(f"Не удалось запустить приложение. correlation_id={correlation_id}")
         return 1
 
 

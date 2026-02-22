@@ -41,9 +41,9 @@ class TrayController:
         )
         context_menu = QMenu(self._window)
 
-        open_action = QAction("Open", context_menu)
+        open_action = QAction("Открыть", context_menu)
         open_action.triggered.connect(self.open_main_window)
-        quit_action = QAction("Quit", context_menu)
+        quit_action = QAction("Выход", context_menu)
         quit_action.triggered.connect(self.quit_application)
 
         context_menu.addAction(open_action)
@@ -51,7 +51,7 @@ class TrayController:
         context_menu.addAction(quit_action)
 
         tray_icon.setContextMenu(context_menu)
-        tray_icon.setToolTip("Study with AI")
+        tray_icon.setToolTip("Практикум с ИИ")
         tray_icon.activated.connect(self._on_activated)
         tray_icon.show()
 

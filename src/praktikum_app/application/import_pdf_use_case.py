@@ -55,11 +55,11 @@ class ImportCoursePdfUseCase:
         try:
             extraction_result = self._extractor.extract(pdf_path)
         except Exception as exc:
-            raise ValueError("Could not read PDF file.") from exc
+            raise ValueError("Не удалось прочитать PDF-файл.") from exc
 
         normalized_content = normalize_course_text(extraction_result.selected.text)
         if not normalized_content:
-            raise ValueError("PDF contains no extractable text.")
+            raise ValueError("В PDF не найден извлекаемый текст.")
 
         imported_at = command.imported_at or datetime.now(tz=UTC)
         content_hash = hashlib.sha256(normalized_content.encode("utf-8")).hexdigest()
@@ -92,9 +92,9 @@ class ImportCoursePdfUseCase:
 
 def _validate_pdf_path(pdf_path: Path) -> None:
     if not pdf_path.exists() or not pdf_path.is_file():
-        raise ValueError("PDF file does not exist.")
+        raise ValueError("PDF-файл не найден.")
     if pdf_path.suffix.lower() != ".pdf":
-        raise ValueError("Unsupported file type. Choose .pdf.")
+        raise ValueError("Неподдерживаемый тип файла. Выберите .pdf.")
 
 
 def _log_pdf_import_success(result: ImportCoursePdfResult) -> None:
