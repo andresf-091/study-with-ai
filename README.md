@@ -49,6 +49,14 @@ Temporary storage note:
 - Imported text is stored only in an in-memory container for the current app process.
 - Persistence to database is planned in PR#5.
 
+## PDF Import Flow (PR#4)
+
+- Open the `Import course...` dialog and use the `PDF` tab.
+- Select a local `.pdf` file and click `Preview`.
+- Text extraction runs with primary strategy (`pypdf`) and fallback (`pdfminer.six`) when quality is low.
+- Click `Continue` to save normalized extracted text into process memory.
+- If the PDF appears scan-like or low-text, the dialog shows a short OCR hint.
+
 ## Theme and Typography
 
 - QSS theme file: `src/praktikum_app/assets/theme/app.qss`
@@ -81,9 +89,9 @@ $env:QT_QPA_PLATFORM='offscreen'; python -m pytest
 - In CI/headless (`QT_QPA_PLATFORM=offscreen`) tray can be unavailable; the app
   gracefully falls back to status-bar messages instead of failing.
 
-## Current Limitations (PR#3)
+## Current Limitations (PR#4)
 
-- No PDF/OCR import yet.
+- OCR engine is not embedded (hint only for scan-like PDFs).
 - No LLM parsing/decomposition yet.
 - No DB persistence yet (in-memory only).
 
