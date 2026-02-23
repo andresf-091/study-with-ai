@@ -343,6 +343,8 @@ def _parse_schema(
             "LLM output failed schema validation.",
             repair_prompt=repair_prompt,
             llm_call_id=llm_call_id,
+            invalid_output=output_text,
+            validation_errors=str(exc),
         ) from exc
 
 

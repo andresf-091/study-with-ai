@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from praktikum_app.application.llm import (
+    LLMRequestRejectedError,
+    LLMResponseSchemaError,
+    LLMTemporaryError,
+    MissingApiKeyLLMError,
+)
+
 
 class LLMInfrastructureError(RuntimeError):
     """Base error for LLM infrastructure failures."""
@@ -11,11 +18,11 @@ class LLMConfigurationError(LLMInfrastructureError):
     """Raised when router/provider configuration is invalid."""
 
 
-class MissingApiKeyError(LLMInfrastructureError):
+class MissingApiKeyError(MissingApiKeyLLMError, LLMInfrastructureError):
     """Raised when required provider key is missing in key store."""
 
 
-class LLMExecutionError(LLMInfrastructureError):
+class LLMExecutionError(LLMTemporaryError, LLMInfrastructureError):
     """User-safe wrapper for temporary provider execution failures."""
 
 
@@ -23,7 +30,7 @@ class ProviderResponseError(LLMInfrastructureError):
     """Raised when provider response shape cannot be parsed safely."""
 
 
-class ProviderRequestError(LLMInfrastructureError):
+class ProviderRequestError(LLMRequestRejectedError, LLMInfrastructureError):
     """Raised when provider rejects request as non-retryable client error."""
 
 
@@ -43,7 +50,7 @@ class LLMRetryExhaustedError(LLMInfrastructureError):
         self.attempts = attempts
 
 
-class LLMResponseValidationError(LLMInfrastructureError):
+class LLMResponseValidationError(LLMResponseSchemaError, LLMInfrastructureError):
     """Raised when provider output fails strict schema validation."""
 
     def __init__(
@@ -52,7 +59,13 @@ class LLMResponseValidationError(LLMInfrastructureError):
         *,
         repair_prompt: str,
         llm_call_id: str,
+        invalid_output: str,
+        validation_errors: str,
     ) -> None:
-        super().__init__(message)
-        self.repair_prompt = repair_prompt
-        self.llm_call_id = llm_call_id
+        super().__init__(
+            message,
+            llm_call_id=llm_call_id,
+            repair_prompt=repair_prompt,
+            invalid_output=invalid_output,
+            validation_errors=validation_errors,
+        )
