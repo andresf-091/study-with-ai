@@ -10,7 +10,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "alembic>=1.13,<2",
+  "httpx>=0.27,<1",
+  "keyring>=25,<26",
   "pdfminer-six",
+  "pydantic>=2.9,<3",
   "pypdf",
   "PySide6>=6.8,<7",
   "SQLAlchemy>=2.0,<3",
