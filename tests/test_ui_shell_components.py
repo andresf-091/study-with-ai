@@ -18,6 +18,7 @@ def test_main_window_has_target_shell_components(application: QApplication) -> N
     import_button = window.findChild(QPushButton, "importCourseButton")
     refresh_button = window.findChild(QPushButton, "refreshCoursesButton")
     delete_button = window.findChild(QPushButton, "deleteCourseButton")
+    course_plan_button = window.findChild(QPushButton, "coursePlanButton")
     llm_keys_button = window.findChild(QPushButton, "llmKeysButton")
     details_label = window.findChild(QLabel, "todayHintLabel")
     empty_label = window.findChild(QLabel, "coursesEmptyStateLabel")
@@ -30,6 +31,8 @@ def test_main_window_has_target_shell_components(application: QApplication) -> N
     assert refresh_button.text() == "Обновить из БД"
     assert delete_button is not None
     assert delete_button.text() == "Удалить выбранный курс"
+    assert course_plan_button is not None
+    assert course_plan_button.text() == "План курса..."
     assert llm_keys_button is not None
     assert llm_keys_button.text() == "Ключи LLM..."
     assert details_label is not None
