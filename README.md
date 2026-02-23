@@ -185,6 +185,24 @@ Schema validation behavior:
 - If output is malformed or schema-mismatched, router raises validation error and
   provides a repair-ready prompt payload; no silent partial parsing.
 
+## Course Decomposition Flow (PR#7)
+
+- Выберите курс в блоке `Загруженные курсы`.
+- Нажмите `План курса...` в правой панели действий.
+- В окне `План курса` нажмите `Сформировать план`:
+  - используется task `COURSE_PARSE` через LLM-router;
+  - ответ валидируется строго по схеме `CoursePlan v1`;
+  - при невалидном JSON запускается bounded repair loop (до 2 repair-попыток).
+- Отредактируйте поля курса, таблицу модулей и таблицу дедлайнов (при необходимости).
+- Нажмите `Сохранить план` для транзакционного сохранения в SQLite (`modules`, `deadlines`).
+- Повторное сохранение идемпотентно: существующий план курса заменяется без дубликатов.
+
+Ограничения PR#7:
+
+- Поддерживается только `CoursePlan v1` (курс/модули/дедлайны).
+- Генерация и проверка практики, напоминания и расширенные учебные сценарии ещё не реализованы.
+- OCR-движок для сканов PDF не встроен (только подсказка пользователю).
+
 ## Quality Checks
 
 ```bash
@@ -210,11 +228,10 @@ $env:QT_QPA_PLATFORM='offscreen'; python -m pytest
 - In CI/headless (`QT_QPA_PLATFORM=offscreen`) tray can be unavailable; the app
   gracefully falls back to status-bar messages instead of failing.
 
-## Current Limitations (PR#6)
+## Current Limitations (PR#7)
 
 - OCR engine is not embedded (hint only for scan-like PDFs).
-- LLM infrastructure is ready, but no end-user decomposition/practice flow is wired yet.
-- No course decomposition/practice/reminders persistence flows yet.
+- End-user flow beyond decomposition (practice generation/grading, reminders) is not implemented yet.
 - No OCR engine integration.
 
 ## Pre-commit
