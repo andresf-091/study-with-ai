@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime
+from typing import cast
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 
 def _empty_deadlines() -> list[CoursePlanDeadline]:
@@ -42,6 +44,28 @@ class CoursePlanModule(BaseModel):
     estimated_hours: int = Field(ge=1, le=200)
     submission_criteria: SubmissionCriteria | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_fields(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+
+        payload: dict[str, object] = dict(cast(Mapping[str, object], value))
+        description = payload.pop("description", None)
+
+        if isinstance(description, str) and description.strip():
+            goals = payload.get("goals")
+            has_goals = False
+            if isinstance(goals, list):
+                typed_goals = cast(list[object], goals)
+                has_goals = any(
+                    isinstance(item, str) and item.strip() for item in typed_goals
+                )
+            if not has_goals:
+                payload["goals"] = [description]
+
+        return payload
+
 
 class CoursePlanDeadline(BaseModel):
     """Deadline item linked to module order."""
@@ -50,9 +74,40 @@ class CoursePlanDeadline(BaseModel):
 
     order: int = Field(ge=1)
     module_ref: int = Field(ge=1)
-    due_at: datetime | None = None
-    kind: str = Field(min_length=1, max_length=64)
-    notes: str | None = Field(default=None, max_length=1000)
+    due_at: datetime | None = Field(
+        default=None,
+        validation_alias=AliasChoices("due_at", "date"),
+    )
+    kind: str = Field(default="deadline", min_length=1, max_length=64)
+    notes: str | None = Field(
+        default=None,
+        max_length=1000,
+        validation_alias=AliasChoices("notes", "description", "description_short"),
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_fields(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+
+        payload: dict[str, object] = dict(cast(Mapping[str, object], value))
+
+        if "notes" not in payload:
+            if "description" in payload:
+                payload["notes"] = payload["description"]
+            elif "description_short" in payload:
+                payload["notes"] = payload["description_short"]
+
+        if "due_at" not in payload and "date" in payload:
+            payload["due_at"] = payload["date"]
+
+        # Drop known legacy aliases to keep extra="forbid" strict for unknown fields.
+        payload.pop("description", None)
+        payload.pop("description_short", None)
+        payload.pop("date", None)
+
+        return payload
 
 
 class CoursePlanV1(BaseModel):
@@ -64,6 +119,33 @@ class CoursePlanV1(BaseModel):
     modules: list[CoursePlanModule] = Field(min_length=1)
     deadlines: list[CoursePlanDeadline] = Field(default_factory=_empty_deadlines)
     schema_version: str = Field(default="v1")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_payload(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+
+        payload: dict[str, object] = dict(cast(Mapping[str, object], value))
+        course_name = payload.pop("course_name", None)
+        course_description = payload.pop("course_description", None)
+        course_start_date = payload.pop("course_start_date", None)
+
+        if "course" not in payload and isinstance(course_name, str):
+            normalized_description = (
+                course_description
+                if isinstance(course_description, str) and course_description.strip()
+                else course_name
+            )
+            course_payload: dict[str, object] = {
+                "title": course_name,
+                "description": normalized_description,
+            }
+            if course_start_date is not None:
+                course_payload["start_date"] = course_start_date
+            payload["course"] = course_payload
+
+        return payload
 
     @model_validator(mode="after")
     def validate_cross_references(self) -> CoursePlanV1:

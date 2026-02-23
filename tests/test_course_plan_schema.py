@@ -101,3 +101,84 @@ def test_course_plan_schema_rejects_unknown_deadline_module_ref() -> None:
                 )
             ],
         )
+
+
+def test_course_plan_schema_accepts_deadline_description_alias() -> None:
+    payload = {
+        "course": {
+            "title": "Python Basics",
+            "description": "Introductory course",
+        },
+        "modules": [
+            {
+                "order": 1,
+                "title": "Module 1",
+                "estimated_hours": 4,
+            }
+        ],
+        "deadlines": [
+            {
+                "order": 1,
+                "module_ref": 1,
+                "kind": "project",
+                "description": "Сдать до пятницы",
+            }
+        ],
+    }
+
+    plan = CoursePlanV1.model_validate(payload)
+
+    assert len(plan.deadlines) == 1
+    assert plan.deadlines[0].notes == "Сдать до пятницы"
+
+def test_course_plan_schema_accepts_legacy_payload_shape() -> None:
+    payload = {
+        "course_name": "Practicum PRO: Middle Python",
+        "modules": [
+            {
+                "order": 1,
+                "title": "Onboarding",
+                "estimated_hours": 20,
+            }
+        ],
+        "deadlines": [
+            {
+                "order": 1,
+                "module_ref": 1,
+                "description_short": "Approve diploma project",
+                "date": None,
+                "notes": "Onboarding takes 4-8 weeks.",
+            }
+        ],
+    }
+
+    plan = CoursePlanV1.model_validate(payload)
+
+    assert plan.course.title == "Practicum PRO: Middle Python"
+    assert plan.course.description == "Practicum PRO: Middle Python"
+    assert len(plan.deadlines) == 1
+    assert plan.deadlines[0].kind == "deadline"
+    assert plan.deadlines[0].notes == "Onboarding takes 4-8 weeks."
+
+
+def test_course_plan_schema_accepts_module_description_alias() -> None:
+    payload = {
+        "course": {
+            "title": "Python Basics",
+            "description": "Introductory course",
+        },
+        "modules": [
+            {
+                "order": 1,
+                "title": "Module 1",
+                "description": "Legacy module description",
+                "estimated_hours": 4,
+            }
+        ],
+        "deadlines": [],
+    }
+
+    plan = CoursePlanV1.model_validate(payload)
+
+    assert len(plan.modules) == 1
+    assert plan.modules[0].goals == ["Legacy module description"]

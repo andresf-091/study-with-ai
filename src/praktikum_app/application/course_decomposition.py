@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from praktikum_app.application.llm import (
     LLMRequest,
+    LLMRequestRejectedError,
     LLMResponse,
     LLMResponseSchemaError,
     LLMTaskType,
@@ -166,7 +167,10 @@ class ParseCourseUseCase:
             raw_text = uow.plans.get_raw_text(command.course_id, command.raw_text_id)
 
         if raw_text is None:
-            raise ValueError("Не удалось найти импортированный текст выбранного курса.")
+            raise ValueError(
+                "Не удалось найти импортированный текст "
+                "выбранного курса."
+            )
 
         LOGGER.info(
             (
@@ -213,8 +217,21 @@ class ParseCourseUseCase:
                     exc.__class__.__name__,
                 )
                 raise ValueError(
-                    "Не найден API-ключ LLM. Откройте «Ключи LLM...» и сохраните ключ."
+                    "Не найден API-ключ LLM. "
+                    "Откройте «Ключи LLM...» и сохраните ключ."
                 ) from exc
+            except LLMRequestRejectedError as exc:
+                LOGGER.warning(
+                    (
+                        "event=course_parse_request_rejected correlation_id=%s course_id=%s "
+                        "module_id=- llm_call_id=- raw_text_id=%s error_type=%s"
+                    ),
+                    correlation_id,
+                    command.course_id,
+                    raw_text.raw_text_id,
+                    exc.__class__.__name__,
+                )
+                raise ValueError(str(exc)) from exc
             except LLMTemporaryError as exc:
                 LOGGER.warning(
                     (
@@ -227,9 +244,7 @@ class ParseCourseUseCase:
                     raw_text.raw_text_id,
                     exc.__class__.__name__,
                 )
-                raise ValueError(
-                    "LLM сервис временно недоступен. Повторите попытку позже."
-                ) from exc
+                raise ValueError(str(exc)) from exc
             except LLMResponseSchemaError as exc:
                 LOGGER.warning(
                     (
@@ -375,3 +390,4 @@ class GetCoursePlanUseCase:
             plan is not None,
         )
         return plan
+

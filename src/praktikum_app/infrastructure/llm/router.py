@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
@@ -18,6 +19,7 @@ from praktikum_app.application.llm import (
     LLMKeyStore,
     LLMProvider,
     LLMRequest,
+    LLMRequestRejectedError,
     LLMResponse,
     LLMServiceProvider,
     LLMTaskType,
@@ -47,6 +49,7 @@ from praktikum_app.infrastructure.llm.errors import (
 from praktikum_app.infrastructure.llm.retry import RetryExecutor
 
 LOGGER = logging.getLogger(__name__)
+_STORE_LLM_OUTPUT_ENV_VAR = "PRAKTIKUM_LLM_AUDIT_STORE_OUTPUT"
 
 TModel = TypeVar("TModel", bound=BaseModel)
 
@@ -126,6 +129,8 @@ class LLMRouter:
                 output_tokens=provider_response.output_tokens if provider_response else None,
                 course_id=request.course_id,
                 module_id=request.module_id,
+                output_text=exc.invalid_output,
+                validation_errors=exc.validation_errors,
                 correlation_id=request.correlation_id,
             )
             LOGGER.warning(
@@ -162,6 +167,8 @@ class LLMRouter:
                 output_tokens=provider_response.output_tokens if provider_response else None,
                 course_id=request.course_id,
                 module_id=request.module_id,
+                output_text=provider_response.output_text if provider_response else None,
+                validation_errors=None,
                 correlation_id=request.correlation_id,
             )
             LOGGER.warning(
@@ -195,6 +202,8 @@ class LLMRouter:
                 output_tokens=provider_response.output_tokens if provider_response else None,
                 course_id=request.course_id,
                 module_id=request.module_id,
+                output_text=provider_response.output_text if provider_response else None,
+                validation_errors=None,
                 correlation_id=request.correlation_id,
             )
             LOGGER.warning(
@@ -212,7 +221,7 @@ class LLMRouter:
                 latency_ms,
                 exc.__class__.__name__,
             )
-            raise LLMExecutionError(
+            raise LLMRequestRejectedError(
                 "LLM-запрос отклонен провайдером. Проверьте модель и API ключ."
             ) from exc
 
@@ -226,6 +235,8 @@ class LLMRouter:
             output_tokens=provider_response.output_tokens,
             course_id=request.course_id,
             module_id=request.module_id,
+            output_text=provider_response.output_text,
+            validation_errors=None,
             correlation_id=request.correlation_id,
         )
         LOGGER.info(
@@ -276,8 +287,23 @@ class LLMRouter:
         output_tokens: int | None,
         course_id: str | None,
         module_id: str | None,
+        output_text: str | None,
+        validation_errors: str | None,
         correlation_id: str,
     ) -> None:
+        store_payload = _should_store_llm_output_payload()
+        output_hash: str | None = None
+        output_length: int | None = None
+        stored_output_text: str | None = None
+        stored_validation_errors: str | None = None
+        if output_text is not None:
+            output_length = len(output_text)
+            output_hash = hashlib.sha256(output_text.encode("utf-8")).hexdigest()
+            if store_payload:
+                stored_output_text = _truncate_text(output_text, max_length=16000)
+        if validation_errors is not None and store_payload:
+            stored_validation_errors = _truncate_text(validation_errors, max_length=8000)
+
         record = LLMCallAuditRecord(
             llm_call_id=llm_call_id,
             provider=route.provider,
@@ -289,6 +315,10 @@ class LLMRouter:
             output_tokens=output_tokens,
             course_id=course_id,
             module_id=module_id,
+            output_hash=output_hash,
+            output_length=output_length,
+            output_text=stored_output_text,
+            validation_errors=stored_validation_errors,
             created_at=self._now(),
         )
         try:
@@ -331,8 +361,9 @@ def _parse_schema(
     *,
     llm_call_id: str,
 ) -> TModel:
+    normalized_output = _strip_markdown_json_fence(output_text)
     try:
-        return schema.model_validate_json(output_text)
+        return schema.model_validate_json(normalized_output)
     except ValidationError as exc:
         repair_prompt = _build_repair_prompt(
             schema=schema,
@@ -346,6 +377,36 @@ def _parse_schema(
             invalid_output=output_text,
             validation_errors=str(exc),
         ) from exc
+
+
+def _strip_markdown_json_fence(value: str) -> str:
+    stripped = value.strip()
+    if not stripped.startswith("```"):
+        return stripped
+
+    lines = stripped.splitlines()
+    if len(lines) < 3:
+        return stripped
+
+    first_line = lines[0].strip().lower()
+    last_line = lines[-1].strip()
+    if last_line != "```":
+        return stripped
+    if first_line != "```" and not first_line.startswith("```json"):
+        return stripped
+
+    return "\n".join(lines[1:-1]).strip()
+
+
+def _should_store_llm_output_payload() -> bool:
+    raw_value = os.environ.get(_STORE_LLM_OUTPUT_ENV_VAR, "1").strip().lower()
+    return raw_value not in {"0", "false", "no", "off"}
+
+
+def _truncate_text(value: str, *, max_length: int) -> str:
+    if len(value) <= max_length:
+        return value
+    return f"{value[:max_length]}...[truncated]"
 
 
 def _build_repair_prompt(

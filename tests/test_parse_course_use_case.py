@@ -17,9 +17,11 @@ from praktikum_app.application.course_decomposition import (
 )
 from praktikum_app.application.llm import (
     LLMRequest,
+    LLMRequestRejectedError,
     LLMResponse,
     LLMResponseSchemaError,
     LLMServiceProvider,
+    LLMTemporaryError,
     MissingApiKeyLLMError,
 )
 from praktikum_app.domain.course_plan import (
@@ -206,7 +208,10 @@ def test_parse_course_use_case_fails_when_repair_budget_exhausted() -> None:
         build_repair_prompt=_build_repair_prompt,
     )
 
-    with pytest.raises(ValueError, match="Не удалось сформировать корректный план курса"):
+    with pytest.raises(
+        ValueError,
+        match="Не удалось сформировать корректный план курса",
+    ):
         use_case.execute(ParseCourseCommand(course_id="course-1", max_repair_attempts=1))
 
     assert len(router.requests) == 2
@@ -231,6 +236,50 @@ def test_parse_course_use_case_shows_user_safe_message_for_missing_key() -> None
     )
 
     with pytest.raises(ValueError, match="Не найден API-ключ LLM"):
+        use_case.execute(ParseCourseCommand(course_id="course-1"))
+
+
+def test_parse_course_use_case_surfaces_provider_rejection_message() -> None:
+    raw_text = CourseRawTextRecord(
+        course_id="course-1",
+        raw_text_id="raw-1",
+        content="Course text",
+        content_hash="hash",
+        length=10,
+    )
+    router = FakeRouter(scripted=[LLMRequestRejectedError("Provider rejected request.")])
+    use_case = ParseCourseUseCase(
+        uow_factory=lambda: FakeCoursePlanUow(FakeCoursePlanRepository(raw_text)),
+        llm_router=router,
+        system_prompt=SYSTEM_PROMPT,
+        response_schema=CoursePlanV1,
+        build_user_prompt=_build_user_prompt,
+        build_repair_prompt=_build_repair_prompt,
+    )
+
+    with pytest.raises(ValueError, match="Provider rejected request"):
+        use_case.execute(ParseCourseCommand(course_id="course-1"))
+
+
+def test_parse_course_use_case_surfaces_temporary_error_message() -> None:
+    raw_text = CourseRawTextRecord(
+        course_id="course-1",
+        raw_text_id="raw-1",
+        content="Course text",
+        content_hash="hash",
+        length=10,
+    )
+    router = FakeRouter(scripted=[LLMTemporaryError("LLM service is temporarily unavailable.")])
+    use_case = ParseCourseUseCase(
+        uow_factory=lambda: FakeCoursePlanUow(FakeCoursePlanRepository(raw_text)),
+        llm_router=router,
+        system_prompt=SYSTEM_PROMPT,
+        response_schema=CoursePlanV1,
+        build_user_prompt=_build_user_prompt,
+        build_repair_prompt=_build_repair_prompt,
+    )
+
+    with pytest.raises(ValueError, match="temporarily unavailable"):
         use_case.execute(ParseCourseCommand(course_id="course-1"))
 
 
@@ -275,3 +324,4 @@ def _build_repair_prompt(*, invalid_output: str, validation_errors: str) -> str:
         "Невалидный ответ:\n"
         f"{invalid_output}"
     )
+

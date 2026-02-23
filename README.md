@@ -179,6 +179,14 @@ Retry/backoff defaults:
 - max delay: `2.0s`
 - backoff multiplier: `2.0`
 
+LLM audit payload storage:
+
+- The app writes `llm_calls` for every call status, including `schema_invalid`.
+- Raw provider output and validation diagnostics are saved into DB fields
+  (`output_text`, `validation_errors`) by default.
+- To disable payload persistence, set:
+  `PRAKTIKUM_LLM_AUDIT_STORE_OUTPUT=0`.
+
 Schema validation behavior:
 
 - Router validates model output using request schema (`pydantic` model).

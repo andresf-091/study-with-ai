@@ -26,6 +26,10 @@ class LLMCallAuditRecord:
     course_id: str | None
     module_id: str | None
     created_at: datetime
+    output_hash: str | None = None
+    output_length: int | None = None
+    output_text: str | None = None
+    validation_errors: str | None = None
 
 
 class LLMCallAuditRepository(Protocol):

@@ -19,7 +19,11 @@ def test_alembic_upgrade_head_on_clean_sqlite() -> None:
 
         engine = create_engine(_sqlite_url(db_path))
         try:
-            table_names = set(inspect(engine).get_table_names())
+            inspector = inspect(engine)
+            table_names = set(inspector.get_table_names())
+            llm_call_columns = {
+                column["name"] for column in inspector.get_columns("llm_calls")
+            }
         finally:
             engine.dispose()
 
@@ -31,6 +35,12 @@ def test_alembic_upgrade_head_on_clean_sqlite() -> None:
             "deadlines",
             "llm_calls",
         }.issubset(table_names)
+        assert {
+            "output_hash",
+            "output_length",
+            "output_text",
+            "validation_errors",
+        }.issubset(llm_call_columns)
     finally:
         db_path.unlink(missing_ok=True)
 

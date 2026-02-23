@@ -32,6 +32,10 @@ def test_llm_audit_record_is_persisted_to_sqlite() -> None:
             output_tokens=55,
             course_id="course-1",
             module_id=None,
+            output_hash="hash-1",
+            output_length=25,
+            output_text='{"answer":"ok"}',
+            validation_errors=None,
             created_at=datetime(2026, 2, 22, 18, 0, tzinfo=UTC),
         )
 
@@ -53,6 +57,10 @@ def test_llm_audit_record_is_persisted_to_sqlite() -> None:
         assert row.output_tokens == 55
         assert row.course_id == "course-1"
         assert row.module_id is None
+        assert row.output_hash == "hash-1"
+        assert row.output_length == 25
+        assert row.output_text == '{"answer":"ok"}'
+        assert row.validation_errors is None
     finally:
         engine.dispose()
         db_path.unlink(missing_ok=True)

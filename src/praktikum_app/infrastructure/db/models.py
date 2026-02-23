@@ -135,6 +135,10 @@ class LlmCallModel(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    output_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    validation_errors: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     course: Mapped[CourseModel | None] = relationship(back_populates="llm_calls")
