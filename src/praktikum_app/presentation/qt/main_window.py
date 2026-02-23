@@ -32,9 +32,12 @@ from praktikum_app.application.import_persistence import (
 )
 from praktikum_app.application.import_text_use_case import ImportCourseTextUseCase
 from praktikum_app.application.in_memory_import_store import InMemoryImportStore
+from praktikum_app.application.llm import LLMKeyStore
 from praktikum_app.domain.import_text import CourseSourceType
 from praktikum_app.infrastructure.db.session import create_default_session_factory
 from praktikum_app.infrastructure.db.unit_of_work import SqlAlchemyImportUnitOfWork
+from praktikum_app.infrastructure.security.keyring_store import KeyringApiKeyStore
+from praktikum_app.presentation.qt.api_keys_dialog import ApiKeysDialog
 from praktikum_app.presentation.qt.import_dialog import ImportCourseDialog
 
 LOGGER = logging.getLogger(__name__)
@@ -51,6 +54,7 @@ class MainWindow(QMainWindow):
         self._import_use_case = ImportCourseTextUseCase()
         self._import_store = InMemoryImportStore()
         self._session_factory: sessionmaker[Session] | None = None
+        self._api_key_store: LLMKeyStore = KeyringApiKeyStore()
 
         self._persist_import_use_case = PersistImportedCourseUseCase(self._create_import_uow)
         self._latest_import_use_case = GetLatestImportedCourseUseCase(self._create_import_uow)
@@ -66,6 +70,7 @@ class MainWindow(QMainWindow):
         self._import_button = QPushButton("Импортировать курс...")
         self._refresh_button = QPushButton("Обновить из БД")
         self._delete_button = QPushButton("Удалить выбранный курс")
+        self._manage_llm_keys_button = QPushButton("Ключи LLM...")
 
         self._build_ui()
         self._restore_courses_on_startup()
@@ -103,6 +108,7 @@ class MainWindow(QMainWindow):
         self._import_button.clicked.connect(self._on_import_course_clicked)
         self._refresh_button.clicked.connect(self._on_refresh_clicked)
         self._delete_button.clicked.connect(self._on_delete_selected_course_clicked)
+        self._manage_llm_keys_button.clicked.connect(self._on_manage_llm_keys_clicked)
 
         self.setCentralWidget(root)
         self.statusBar().showMessage("Готово", 2000)
@@ -142,12 +148,14 @@ class MainWindow(QMainWindow):
         self._refresh_button.setObjectName("refreshCoursesButton")
         self._import_button.setObjectName("importCourseButton")
         self._delete_button.setObjectName("deleteCourseButton")
+        self._manage_llm_keys_button.setObjectName("llmKeysButton")
         self._delete_button.setEnabled(False)
 
         panel_layout.addStretch(1)
         panel_layout.addWidget(self._refresh_button)
         panel_layout.addWidget(self._import_button)
         panel_layout.addWidget(self._delete_button)
+        panel_layout.addWidget(self._manage_llm_keys_button)
         return panel
 
     def _restore_courses_on_startup(self) -> None:
@@ -323,6 +331,17 @@ class MainWindow(QMainWindow):
         self._import_store.clear()
         self._load_courses_from_db(show_error_dialog=False)
         self.statusBar().showMessage("Курс удалён.", 4000)
+
+    def _on_manage_llm_keys_clicked(self) -> None:
+        correlation_id = str(uuid4())
+        LOGGER.info(
+            "event=llm_keys_open_clicked correlation_id=%s course_id=- module_id=- llm_call_id=-",
+            correlation_id,
+        )
+
+        dialog = ApiKeysDialog(key_store=self._api_key_store, parent=self)
+        dialog.exec()
+        self.statusBar().showMessage("Настройки LLM-ключей обновлены.", 3000)
 
     def _on_course_selection_changed(
         self,
