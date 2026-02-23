@@ -143,6 +143,48 @@ Verify import persistence:
 - Font loading uses `QFontDatabase`; if no local fonts exist, the app falls back
   to system serif fonts.
 
+## LLM Infrastructure (PR#6)
+
+What is added:
+
+- Unified LLM contracts (`LLMTaskType`, `LLMRequest`, `LLMResponse`, provider protocol).
+- Provider clients:
+  - Anthropic Messages API (`AnthropicClient`)
+  - OpenRouter chat completions (`OpenRouterClient`)
+- `LLMRouter` with strict policy mapping and no silent provider fallback.
+- Bounded retry/backoff for retryable failures (timeouts, HTTP 429, HTTP 5xx).
+- Audit persistence for each call into `llm_calls`.
+- Prompt governance module with purpose/schema/version for `course_parse`.
+- API key storage via OS keyring only.
+
+Routing policy (fixed by product policy):
+
+- `COURSE_PARSE` -> Anthropic (`claude-3-5-sonnet-latest`)
+- `PRACTICE_GRADE` -> Anthropic (`claude-3-5-sonnet-latest`)
+- `PRACTICE_GEN` -> OpenRouter (`openai/gpt-4o-mini`)
+- `CURATOR_MSG` -> OpenRouter (`openai/gpt-4o-mini`)
+
+If config violates this policy, router initialization fails explicitly.
+
+API keys setup:
+
+- Open app and click `Ключи LLM...` in the right action panel.
+- Save/delete provider keys in the `Ключи LLM` dialog.
+- Keys are stored in system keyring (`keyring` backend), not in DB/files.
+
+Retry/backoff defaults:
+
+- max attempts: `3`
+- base delay: `0.25s`
+- max delay: `2.0s`
+- backoff multiplier: `2.0`
+
+Schema validation behavior:
+
+- Router validates model output using request schema (`pydantic` model).
+- If output is malformed or schema-mismatched, router raises validation error and
+  provides a repair-ready prompt payload; no silent partial parsing.
+
 ## Quality Checks
 
 ```bash
@@ -168,12 +210,12 @@ $env:QT_QPA_PLATFORM='offscreen'; python -m pytest
 - In CI/headless (`QT_QPA_PLATFORM=offscreen`) tray can be unavailable; the app
   gracefully falls back to status-bar messages instead of failing.
 
-## Current Limitations (PR#5)
+## Current Limitations (PR#6)
 
 - OCR engine is not embedded (hint only for scan-like PDFs).
-- No LLM parsing/decomposition yet.
+- LLM infrastructure is ready, but no end-user decomposition/practice flow is wired yet.
 - No course decomposition/practice/reminders persistence flows yet.
-- `llm_calls`, `modules`, and `deadlines` schema exists but is not actively used yet.
+- No OCR engine integration.
 
 ## Pre-commit
 
