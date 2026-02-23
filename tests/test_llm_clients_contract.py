@@ -9,7 +9,7 @@ import pytest
 
 from praktikum_app.application.llm import ProviderCallRequest
 from praktikum_app.infrastructure.llm.clients import AnthropicClient, OpenRouterClient
-from praktikum_app.infrastructure.llm.errors import ProviderRateLimitError
+from praktikum_app.infrastructure.llm.errors import ProviderRateLimitError, ProviderRequestError
 
 
 def test_anthropic_client_parses_messages_response() -> None:
@@ -116,3 +116,38 @@ def test_openrouter_client_raises_rate_limit_for_429() -> None:
             )
     finally:
         http_client.close()
+
+
+def test_anthropic_client_includes_error_detail_for_404() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            status_code=404,
+            json={
+                "error": {
+                    "type": "not_found_error",
+                    "message": "model not found: claude-3-5-sonnet-latest",
+                }
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    http_client = httpx.Client(transport=transport, base_url="https://api.anthropic.com")
+    client = AnthropicClient(http_client=http_client)
+    try:
+        with pytest.raises(ProviderRequestError) as exc_info:
+            client.generate(
+                ProviderCallRequest(
+                    model="claude-3-5-sonnet-latest",
+                    api_key="anthropic-key",
+                    system_prompt="system",
+                    user_prompt="user",
+                    max_output_tokens=128,
+                    temperature=0.1,
+                    timeout_seconds=5.0,
+                )
+            )
+    finally:
+        http_client.close()
+
+    assert "status=404" in str(exc_info.value)
+    assert "model not found" in str(exc_info.value)

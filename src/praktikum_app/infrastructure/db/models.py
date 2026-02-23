@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from praktikum_app.infrastructure.db.base import Base
@@ -17,6 +17,8 @@ class CourseModel(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     sources: Mapped[list[CourseSourceModel]] = relationship(back_populates="course")
@@ -74,6 +76,9 @@ class ModuleModel(Base):
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
+    goals_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    topics_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    estimated_hours: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -94,6 +99,9 @@ class DeadlineModel(Base):
         nullable=True,
         index=True,
     )
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, default="deadline")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="scheduled")
@@ -127,6 +135,10 @@ class LlmCallModel(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    output_length: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    validation_errors: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     course: Mapped[CourseModel | None] = relationship(back_populates="llm_calls")

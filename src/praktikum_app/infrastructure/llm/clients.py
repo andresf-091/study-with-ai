@@ -142,11 +142,57 @@ def _raise_for_status(provider: LLMServiceProvider, response: httpx.Response) ->
         return
 
     message = f"{provider.value} request failed with status={status_code}."
+    detail = _extract_error_detail(response)
+    if detail:
+        message = f"{message} detail={detail}"
     if status_code == 429:
         raise ProviderRateLimitError(message)
     if 500 <= status_code <= 599:
         raise ProviderServerError(message)
     raise ProviderRequestError(message)
+
+
+def _extract_error_detail(response: httpx.Response) -> str | None:
+    try:
+        payload = response.json()
+    except ValueError:
+        text = response.text.strip()
+        return _truncate_error_detail(text) if text else None
+
+    if isinstance(payload, dict):
+        payload_obj = _normalize_json_object(cast(dict[object, object], payload))
+        detail = _read_message_from_error_payload(payload_obj)
+        if detail:
+            return _truncate_error_detail(detail)
+
+    return None
+
+
+def _read_message_from_error_payload(payload: dict[str, object]) -> str | None:
+    error_obj = payload.get("error")
+    if isinstance(error_obj, str) and error_obj.strip():
+        return error_obj.strip()
+
+    if isinstance(error_obj, dict):
+        normalized_error = _normalize_json_object(cast(dict[object, object], error_obj))
+        error_message = normalized_error.get("message")
+        if isinstance(error_message, str) and error_message.strip():
+            return error_message.strip()
+        error_type = normalized_error.get("type")
+        if isinstance(error_type, str) and error_type.strip():
+            return error_type.strip()
+
+    message = payload.get("message")
+    if isinstance(message, str) and message.strip():
+        return message.strip()
+
+    return None
+
+
+def _truncate_error_detail(value: str, *, max_length: int = 300) -> str:
+    if len(value) <= max_length:
+        return value
+    return f"{value[:max_length]}..."
 
 
 def _read_json_object(

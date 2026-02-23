@@ -12,6 +12,7 @@ from praktikum_app.application.llm import (
     LLMKeyStore,
     LLMProvider,
     LLMRequest,
+    LLMRequestRejectedError,
     LLMServiceProvider,
     LLMTaskType,
     ProviderCallRequest,
@@ -29,6 +30,7 @@ from praktikum_app.infrastructure.llm.errors import (
     LLMResponseValidationError,
     MissingApiKeyError,
     ProviderRateLimitError,
+    ProviderRequestError,
 )
 from praktikum_app.infrastructure.llm.retry import RetryExecutor, RetryPolicy
 from praktikum_app.infrastructure.llm.router import LLMRouter
@@ -251,6 +253,27 @@ def test_router_marks_malformed_json_as_schema_invalid() -> None:
     assert audit_repo.records[-1].status == "schema_invalid"
 
 
+def test_router_parses_markdown_fenced_json_output() -> None:
+    anthropic = SequenceProvider(
+        LLMServiceProvider.ANTHROPIC,
+        [ProviderCallResponse('```json\n{"answer":"ok"}\n```', 11, 2)],
+    )
+    openrouter = SequenceProvider(LLMServiceProvider.OPENROUTER, [])
+    audit_repo = InMemoryAuditRepository()
+    router = _make_router(
+        anthropic=anthropic,
+        openrouter=openrouter,
+        audit_repo=audit_repo,
+    )
+
+    response = router.execute(_make_request(task_type=LLMTaskType.COURSE_PARSE))
+
+    assert response.parsed.answer == "ok"
+    assert audit_repo.records[-1].status == "success"
+    assert audit_repo.records[-1].output_hash is not None
+    assert audit_repo.records[-1].output_length == len('```json\n{"answer":"ok"}\n```')
+
+
 def test_router_retries_timeout_then_succeeds() -> None:
     anthropic = SequenceProvider(
         LLMServiceProvider.ANTHROPIC,
@@ -316,6 +339,26 @@ def test_router_returns_user_safe_error_when_429_retries_exhausted() -> None:
 
     assert anthropic.calls == 3
     assert audit_repo.records[-1].status == "provider_unavailable"
+
+
+def test_router_marks_provider_rejected_and_raises_request_rejected() -> None:
+    anthropic = SequenceProvider(
+        LLMServiceProvider.ANTHROPIC,
+        [ProviderRequestError("status=404")],
+    )
+    openrouter = SequenceProvider(LLMServiceProvider.OPENROUTER, [])
+    audit_repo = InMemoryAuditRepository()
+    router = _make_router(
+        anthropic=anthropic,
+        openrouter=openrouter,
+        audit_repo=audit_repo,
+    )
+
+    with pytest.raises(LLMRequestRejectedError):
+        router.execute(_make_request(task_type=LLMTaskType.COURSE_PARSE))
+
+    assert anthropic.calls == 1
+    assert audit_repo.records[-1].status == "provider_rejected"
 
 
 def _make_router(

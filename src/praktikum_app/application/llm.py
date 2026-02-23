@@ -107,3 +107,38 @@ class LLMKeyStore(Protocol):
     def delete_key(self, provider: LLMServiceProvider) -> None:
         """Delete provider key from storage."""
         ...
+
+
+class LLMError(RuntimeError):
+    """Base application-level error for routed LLM execution."""
+
+
+class MissingApiKeyLLMError(LLMError):
+    """Raised when provider API key is missing."""
+
+
+class LLMTemporaryError(LLMError):
+    """Raised when LLM service is temporarily unavailable."""
+
+
+class LLMRequestRejectedError(LLMError):
+    """Raised when provider rejects request as non-retryable."""
+
+
+class LLMResponseSchemaError(LLMError):
+    """Raised when output JSON fails strict schema validation."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        llm_call_id: str,
+        repair_prompt: str,
+        invalid_output: str,
+        validation_errors: str,
+    ) -> None:
+        super().__init__(message)
+        self.llm_call_id = llm_call_id
+        self.repair_prompt = repair_prompt
+        self.invalid_output = invalid_output
+        self.validation_errors = validation_errors

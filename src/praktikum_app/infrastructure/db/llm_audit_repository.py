@@ -29,6 +29,10 @@ class SqlAlchemyLlmCallAuditRepository(LLMCallAuditRepository):
             latency_ms=record.latency_ms,
             input_tokens=record.input_tokens,
             output_tokens=record.output_tokens,
+            output_hash=record.output_hash,
+            output_length=record.output_length,
+            output_text=record.output_text,
+            validation_errors=record.validation_errors,
             created_at=record.created_at,
         )
         self._session.add(model)
