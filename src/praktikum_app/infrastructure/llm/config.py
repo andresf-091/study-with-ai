@@ -13,7 +13,7 @@ from praktikum_app.infrastructure.llm.retry import RetryPolicy
 ANTHROPIC_MODEL_ENV_VAR = "PRAKTIKUM_ANTHROPIC_MODEL"
 OPENROUTER_MODEL_ENV_VAR = "PRAKTIKUM_OPENROUTER_MODEL"
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-6"
-DEFAULT_OPENROUTER_MODEL = "openai/gpt-4o-mini"
+DEFAULT_OPENROUTER_MODEL = "qwen/qwen3-coder:free"
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ class LLMRouterConfig:
 EXPECTED_PROVIDER_BY_TASK: dict[LLMTaskType, LLMServiceProvider] = {
     LLMTaskType.COURSE_PARSE: LLMServiceProvider.ANTHROPIC,
     LLMTaskType.PRACTICE_GRADE: LLMServiceProvider.ANTHROPIC,
-    LLMTaskType.PRACTICE_GEN: LLMServiceProvider.OPENROUTER,
+    LLMTaskType.PRACTICE_GEN: LLMServiceProvider.ANTHROPIC,
     LLMTaskType.CURATOR_MSG: LLMServiceProvider.OPENROUTER,
 }
 
@@ -61,8 +61,8 @@ def default_routes() -> dict[LLMTaskType, TaskRoute]:
             model=anthropic_model,
         ),
         LLMTaskType.PRACTICE_GEN: TaskRoute(
-            provider=LLMServiceProvider.OPENROUTER,
-            model=openrouter_model,
+            provider=LLMServiceProvider.ANTHROPIC,
+            model=anthropic_model,
         ),
         LLMTaskType.CURATOR_MSG: TaskRoute(
             provider=LLMServiceProvider.OPENROUTER,

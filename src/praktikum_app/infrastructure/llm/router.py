@@ -190,7 +190,8 @@ class LLMRouter:
                 exc.__class__.__name__,
             )
             raise LLMExecutionError(
-                "LLM сервис временно недоступен. Повторите попытку позже."
+                "LLM сервис временно недоступен. "
+                "Повторите попытку позже."
             ) from exc
         except ProviderRequestError as exc:
             latency_ms = _compute_latency_ms(started, self._monotonic())
@@ -225,7 +226,7 @@ class LLMRouter:
                 exc.__class__.__name__,
             )
             raise LLMRequestRejectedError(
-                "LLM-запрос отклонен провайдером. Проверьте модель и API ключ."
+                _build_provider_rejected_message(provider=route.provider, error=exc)
             ) from exc
 
         self._persist_audit(
@@ -428,8 +429,8 @@ def _build_repair_prompt(
         indent=2,
     )
     return (
-        "Исправь ответ строго под JSON-схему.\n"
-        "Верни только валидный JSON без пояснений.\n\n"
+        "Ð˜ÑÐ¿Ñ€Ð°Ð²ÑŒ Ð¾Ñ‚Ð²ÐµÑ‚ ÑÑ‚Ñ€Ð¾Ð³Ð¾ Ð¿Ð¾Ð´ JSON-ÑÑ…ÐµÐ¼Ñƒ.\n"
+        "Ð’ÐµÑ€Ð½Ð¸ Ñ‚Ð¾Ð»ÑŒÐºÐ¾ Ð²Ð°Ð»Ð¸Ð´Ð½Ñ‹Ð¹ JSON Ð±ÐµÐ· Ð¿Ð¾ÑÑÐ½ÐµÐ½Ð¸Ð¹.\n\n"
         "JSON schema:\n"
         f"{schema_json}\n\n"
         "Validation errors:\n"
@@ -437,3 +438,26 @@ def _build_repair_prompt(
         "Original invalid output:\n"
         f"{invalid_output}"
     )
+
+
+def _build_provider_rejected_message(
+    *,
+    provider: LLMServiceProvider,
+    error: ProviderRequestError,
+) -> str:
+    base_message = "LLM-запрос отклонен провайдером. Проверьте модель и API ключ."
+    error_text = str(error).lower()
+
+    if (
+        provider is LLMServiceProvider.OPENROUTER
+        and "no endpoints found matching your data policy" in error_text
+    ):
+        return (
+            "OpenRouter отклонил запрос из-за privacy policy для выбранной модели. "
+            "Откройте https://openrouter.ai/settings/privacy и включите "
+            "Free model publication, либо укажите другую модель "
+            "через PRAKTIKUM_OPENROUTER_MODEL."
+        )
+
+    return base_message
+

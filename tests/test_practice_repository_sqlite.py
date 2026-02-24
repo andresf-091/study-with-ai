@@ -142,6 +142,46 @@ def test_practice_repository_regenerate_appends_history_without_overwrite() -> N
         db_path.unlink(missing_ok=True)
 
 
+def test_practice_repository_can_read_current_task_before_commit() -> None:
+    db_path = Path("tests") / f"_runtime_practice_precommit_{uuid4().hex}.db"
+    session_factory, engine, _, module_id = _seed_course_with_module(db_path)
+    try:
+        with SqlAlchemyPracticeUnitOfWork(session_factory) as uow:
+            context = uow.practice.get_module_context(module_id)
+            assert context is not None
+            uow.practice.save_generated_batch(
+                module_context=context,
+                difficulty=PracticeDifficulty.MEDIUM,
+                llm_call_id="llm-call-precommit",
+                generation_id="generation-precommit",
+                created_at=datetime(2026, 3, 2, 11, 0, tzinfo=UTC),
+                candidates=[
+                    PracticeTaskDraft(
+                        candidate_index=1,
+                        statement="Задание pre-commit 1",
+                        expected_outline="outline pre-commit 1",
+                    ),
+                    PracticeTaskDraft(
+                        candidate_index=2,
+                        statement="Задание pre-commit 2",
+                        expected_outline="outline pre-commit 2",
+                    ),
+                ],
+            )
+
+            current = uow.practice.get_current_task(module_id)
+            history = uow.practice.list_task_history(module_id)
+
+            assert current is not None
+            assert current.statement == "Задание pre-commit 1"
+            assert current.generation_id == "generation-precommit"
+            assert len(history) == 2
+            uow.commit()
+    finally:
+        engine.dispose()
+        db_path.unlink(missing_ok=True)
+
+
 def _seed_course_with_module(
     database_path: Path,
 ) -> tuple[sessionmaker[Session], Engine, str, str]:

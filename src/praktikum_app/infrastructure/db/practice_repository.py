@@ -101,6 +101,9 @@ class SqlAlchemyPracticeRepository(PracticeRepository):
         return saved
 
     def get_current_task(self, module_id: str) -> PracticeTask | None:
+        # Session autoflush is disabled globally; flush pending inserts so
+        # current/history reads inside the same UoW can see freshly generated tasks.
+        self._session.flush()
         latest_generation_id = self._session.execute(
             select(PracticeTaskModel.generation_id)
             .where(PracticeTaskModel.module_id == module_id)
@@ -125,6 +128,8 @@ class SqlAlchemyPracticeRepository(PracticeRepository):
         return _to_domain(current_model)
 
     def list_task_history(self, module_id: str) -> list[PracticeTask]:
+        # Keep read-your-writes semantics in the same transaction.
+        self._session.flush()
         models = list(
             self._session.execute(
                 select(PracticeTaskModel)
