@@ -8,7 +8,7 @@ from datetime import datetime
 from types import TracebackType
 from typing import Protocol
 
-from praktikum_app.application.llm import LLMServiceProvider
+from praktikum_app.application.llm import LLMServiceProvider, LLMTaskType
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,7 @@ class LLMCallAuditRecord:
     """Audit record persisted for each LLM call attempt."""
 
     llm_call_id: str
+    task_type: LLMTaskType | None
     provider: LLMServiceProvider
     model: str
     prompt_hash: str

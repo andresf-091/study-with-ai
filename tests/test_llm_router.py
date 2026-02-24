@@ -142,6 +142,7 @@ def test_router_routes_course_parse_to_anthropic() -> None:
     assert anthropic.calls == 1
     assert openrouter.calls == 0
     assert audit_repo.records[-1].status == "success"
+    assert audit_repo.records[-1].task_type is LLMTaskType.COURSE_PARSE
 
 
 def test_router_routes_curator_msg_to_openrouter() -> None:
@@ -164,6 +165,7 @@ def test_router_routes_curator_msg_to_openrouter() -> None:
     assert anthropic.calls == 0
     assert openrouter.calls == 1
     assert audit_repo.records[-1].status == "success"
+    assert audit_repo.records[-1].task_type is LLMTaskType.CURATOR_MSG
 
 
 def test_router_raises_when_provider_key_missing() -> None:

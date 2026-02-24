@@ -34,8 +34,10 @@ def test_alembic_upgrade_head_on_clean_sqlite() -> None:
             "modules",
             "deadlines",
             "llm_calls",
+            "practice_tasks",
         }.issubset(table_names)
         assert {
+            "task_type",
             "output_hash",
             "output_length",
             "output_text",

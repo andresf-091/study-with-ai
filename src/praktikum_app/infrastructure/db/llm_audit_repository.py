@@ -22,6 +22,7 @@ class SqlAlchemyLlmCallAuditRepository(LLMCallAuditRepository):
             llm_call_id=record.llm_call_id,
             course_id=record.course_id,
             module_id=record.module_id,
+            task_type=record.task_type.value if record.task_type is not None else None,
             provider=record.provider.value,
             model=record.model,
             prompt_hash=record.prompt_hash,

@@ -121,6 +121,7 @@ class LLMRouter:
             latency_ms = _compute_latency_ms(started, self._monotonic())
             self._persist_audit(
                 llm_call_id=llm_call_id,
+                task_type=request.task_type,
                 route=route,
                 prompt_hash=prompt_hash,
                 status="schema_invalid",
@@ -159,6 +160,7 @@ class LLMRouter:
             latency_ms = _compute_latency_ms(started, self._monotonic())
             self._persist_audit(
                 llm_call_id=llm_call_id,
+                task_type=request.task_type,
                 route=route,
                 prompt_hash=prompt_hash,
                 status="provider_unavailable",
@@ -194,6 +196,7 @@ class LLMRouter:
             latency_ms = _compute_latency_ms(started, self._monotonic())
             self._persist_audit(
                 llm_call_id=llm_call_id,
+                task_type=request.task_type,
                 route=route,
                 prompt_hash=prompt_hash,
                 status="provider_rejected",
@@ -227,6 +230,7 @@ class LLMRouter:
 
         self._persist_audit(
             llm_call_id=llm_call_id,
+            task_type=request.task_type,
             route=route,
             prompt_hash=prompt_hash,
             status="success",
@@ -279,6 +283,7 @@ class LLMRouter:
         self,
         *,
         llm_call_id: str,
+        task_type: LLMTaskType,
         route: TaskRoute,
         prompt_hash: str,
         status: str,
@@ -306,6 +311,7 @@ class LLMRouter:
 
         record = LLMCallAuditRecord(
             llm_call_id=llm_call_id,
+            task_type=task_type,
             provider=route.provider,
             model=route.model,
             prompt_hash=prompt_hash,
