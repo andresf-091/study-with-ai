@@ -38,8 +38,14 @@ from praktikum_app.application.import_persistence import (
 from praktikum_app.application.import_text_use_case import ImportCourseTextUseCase
 from praktikum_app.application.in_memory_import_store import InMemoryImportStore
 from praktikum_app.application.llm import LLMKeyStore
+from praktikum_app.application.practice_generation import (
+    GeneratePracticeUseCase,
+    GetPracticeTaskStateUseCase,
+    ListPracticeModulesUseCase,
+)
 from praktikum_app.domain.import_text import CourseSourceType
 from praktikum_app.infrastructure.db.course_plan_unit_of_work import SqlAlchemyCoursePlanUnitOfWork
+from praktikum_app.infrastructure.db.practice_unit_of_work import SqlAlchemyPracticeUnitOfWork
 from praktikum_app.infrastructure.db.session import create_default_session_factory
 from praktikum_app.infrastructure.db.unit_of_work import SqlAlchemyImportUnitOfWork
 from praktikum_app.infrastructure.llm.factory import create_default_llm_router
@@ -48,10 +54,16 @@ from praktikum_app.infrastructure.llm.prompts.course_parse import (
     build_course_parse_repair_prompt,
     build_course_parse_user_prompt,
 )
+from praktikum_app.infrastructure.llm.prompts.practice_generation import (
+    PRACTICE_GENERATION_PROMPT,
+    build_practice_generation_repair_prompt,
+    build_practice_generation_user_prompt,
+)
 from praktikum_app.infrastructure.security.keyring_store import KeyringApiKeyStore
 from praktikum_app.presentation.qt.api_keys_dialog import ApiKeysDialog
 from praktikum_app.presentation.qt.course_plan_dialog import CoursePlanDialog
 from praktikum_app.presentation.qt.import_dialog import ImportCourseDialog
+from praktikum_app.presentation.qt.practice_dialog import PracticeDialog
 
 LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +99,31 @@ class MainWindow(QMainWindow):
         )
         self._save_course_plan_use_case = SaveCoursePlanUseCase(self._create_course_plan_uow)
         self._get_course_plan_use_case = GetCoursePlanUseCase(self._create_course_plan_uow)
+        self._generate_practice_use_case = GeneratePracticeUseCase(
+            self._create_practice_uow,
+            self._llm_router,
+            system_prompt=PRACTICE_GENERATION_PROMPT.system_prompt,
+            response_schema=PRACTICE_GENERATION_PROMPT.expected_schema,
+            build_user_prompt=lambda context, difficulty, candidate_count: (
+                build_practice_generation_user_prompt(
+                    course_title=context.course_title,
+                    module_title=context.module_title,
+                    module_order=context.module_order,
+                    goals=context.goals,
+                    topics=context.topics,
+                    estimated_hours=context.estimated_hours,
+                    difficulty=difficulty,
+                    candidate_count=candidate_count,
+                )
+            ),
+            build_repair_prompt=build_practice_generation_repair_prompt,
+        )
+        self._list_practice_modules_use_case = ListPracticeModulesUseCase(
+            self._create_practice_uow
+        )
+        self._get_practice_state_use_case = GetPracticeTaskStateUseCase(
+            self._create_practice_uow
+        )
 
         self._courses_by_id: dict[str, ImportedCourseSummary] = {}
         self._selected_course_id: str | None = None
@@ -98,6 +135,7 @@ class MainWindow(QMainWindow):
         self._refresh_button = QPushButton("Обновить из БД")
         self._delete_button = QPushButton("Удалить выбранный курс")
         self._course_plan_button = QPushButton("План курса...")
+        self._practice_button = QPushButton("Практика...")
         self._manage_llm_keys_button = QPushButton("Ключи LLM...")
 
         self._build_ui()
@@ -137,6 +175,7 @@ class MainWindow(QMainWindow):
         self._refresh_button.clicked.connect(self._on_refresh_clicked)
         self._delete_button.clicked.connect(self._on_delete_selected_course_clicked)
         self._course_plan_button.clicked.connect(self._on_open_course_plan_clicked)
+        self._practice_button.clicked.connect(self._on_open_practice_clicked)
         self._manage_llm_keys_button.clicked.connect(self._on_manage_llm_keys_clicked)
 
         self.setCentralWidget(root)
@@ -178,14 +217,17 @@ class MainWindow(QMainWindow):
         self._import_button.setObjectName("importCourseButton")
         self._delete_button.setObjectName("deleteCourseButton")
         self._course_plan_button.setObjectName("coursePlanButton")
+        self._practice_button.setObjectName("practiceButton")
         self._manage_llm_keys_button.setObjectName("llmKeysButton")
         self._delete_button.setEnabled(False)
         self._course_plan_button.setEnabled(False)
+        self._practice_button.setEnabled(False)
 
         panel_layout.addStretch(1)
         panel_layout.addWidget(self._refresh_button)
         panel_layout.addWidget(self._import_button)
         panel_layout.addWidget(self._course_plan_button)
+        panel_layout.addWidget(self._practice_button)
         panel_layout.addWidget(self._delete_button)
         panel_layout.addWidget(self._manage_llm_keys_button)
         return panel
@@ -401,6 +443,31 @@ class MainWindow(QMainWindow):
         self._load_courses_from_db(select_course_id=course_id, show_error_dialog=False)
         self.statusBar().showMessage("Экран «План курса» закрыт.", 3000)
 
+    def _on_open_practice_clicked(self) -> None:
+        course_id = self._selected_course_id
+        if course_id is None:
+            self.statusBar().showMessage("Выберите курс для практики.", 3000)
+            return
+
+        correlation_id = str(uuid4())
+        LOGGER.info(
+            (
+                "event=practice_screen_open_clicked correlation_id=%s course_id=%s module_id=- "
+                "llm_call_id=-"
+            ),
+            correlation_id,
+            course_id,
+        )
+        dialog = PracticeDialog(
+            course_id=course_id,
+            generate_use_case=self._generate_practice_use_case,
+            list_modules_use_case=self._list_practice_modules_use_case,
+            state_use_case=self._get_practice_state_use_case,
+            parent=self,
+        )
+        dialog.exec()
+        self.statusBar().showMessage("Экран «Практика» закрыт.", 3000)
+
     def _on_course_selection_changed(
         self,
         current_item: QListWidgetItem | None,
@@ -410,6 +477,7 @@ class MainWindow(QMainWindow):
             self._selected_course_id = None
             self._delete_button.setEnabled(False)
             self._course_plan_button.setEnabled(False)
+            self._practice_button.setEnabled(False)
             self._set_no_selection_state()
             return
 
@@ -418,6 +486,7 @@ class MainWindow(QMainWindow):
             self._selected_course_id = None
             self._delete_button.setEnabled(False)
             self._course_plan_button.setEnabled(False)
+            self._practice_button.setEnabled(False)
             self._set_no_selection_state()
             return
 
@@ -426,12 +495,14 @@ class MainWindow(QMainWindow):
             self._selected_course_id = None
             self._delete_button.setEnabled(False)
             self._course_plan_button.setEnabled(False)
+            self._practice_button.setEnabled(False)
             self._set_no_selection_state()
             return
 
         self._selected_course_id = summary.course_id
         self._delete_button.setEnabled(True)
         self._course_plan_button.setEnabled(True)
+        self._practice_button.setEnabled(True)
         self._course_details_label.setText(_format_course_details(summary))
         correlation_id = str(uuid4())
         LOGGER.info(
@@ -503,6 +574,7 @@ class MainWindow(QMainWindow):
             self._selected_course_id = None
             self._delete_button.setEnabled(False)
             self._course_plan_button.setEnabled(False)
+            self._practice_button.setEnabled(False)
             self._empty_state_label.setText(
                 "Курсы пока не загружены. Нажмите «Импортировать курс...»."
             )
@@ -531,6 +603,7 @@ class MainWindow(QMainWindow):
         self._courses_list.setEnabled(False)
         self._delete_button.setEnabled(False)
         self._course_plan_button.setEnabled(False)
+        self._practice_button.setEnabled(False)
         self._empty_state_label.setText(message)
         self._empty_state_label.setVisible(True)
         self._course_details_label.setText("Данные о курсе недоступны из-за ошибки БД.")
@@ -548,6 +621,9 @@ class MainWindow(QMainWindow):
 
     def _create_course_plan_uow(self) -> SqlAlchemyCoursePlanUnitOfWork:
         return SqlAlchemyCoursePlanUnitOfWork(self._get_session_factory())
+
+    def _create_practice_uow(self) -> SqlAlchemyPracticeUnitOfWork:
+        return SqlAlchemyPracticeUnitOfWork(self._get_session_factory())
 
     def _get_session_factory(self) -> sessionmaker[Session]:
         session_factory = self._session_factory
