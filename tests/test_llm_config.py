@@ -24,7 +24,7 @@ def test_default_routes_use_builtin_models_when_env_missing(
 
     assert routes[LLMTaskType.COURSE_PARSE].model == DEFAULT_ANTHROPIC_MODEL
     assert routes[LLMTaskType.PRACTICE_GRADE].model == DEFAULT_ANTHROPIC_MODEL
-    assert routes[LLMTaskType.PRACTICE_GEN].model == DEFAULT_OPENROUTER_MODEL
+    assert routes[LLMTaskType.PRACTICE_GEN].model == DEFAULT_ANTHROPIC_MODEL
     assert routes[LLMTaskType.CURATOR_MSG].model == DEFAULT_OPENROUTER_MODEL
 
 
@@ -38,7 +38,7 @@ def test_default_routes_use_env_model_overrides(
 
     assert routes[LLMTaskType.COURSE_PARSE].model == "claude-opus-4-6"
     assert routes[LLMTaskType.PRACTICE_GRADE].model == "claude-opus-4-6"
-    assert routes[LLMTaskType.PRACTICE_GEN].model == "anthropic/claude-3.5-sonnet"
+    assert routes[LLMTaskType.PRACTICE_GEN].model == "claude-opus-4-6"
     assert routes[LLMTaskType.CURATOR_MSG].model == "anthropic/claude-3.5-sonnet"
 
 
@@ -51,4 +51,4 @@ def test_default_routes_ignore_blank_env_model_values(
     routes = default_routes()
 
     assert routes[LLMTaskType.COURSE_PARSE].model == DEFAULT_ANTHROPIC_MODEL
-    assert routes[LLMTaskType.PRACTICE_GEN].model == DEFAULT_OPENROUTER_MODEL
+    assert routes[LLMTaskType.PRACTICE_GEN].model == DEFAULT_ANTHROPIC_MODEL

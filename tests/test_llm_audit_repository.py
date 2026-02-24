@@ -23,6 +23,7 @@ def test_llm_audit_record_is_persisted_to_sqlite() -> None:
     try:
         record = LLMCallAuditRecord(
             llm_call_id="call-123",
+            task_type=None,
             provider=LLMServiceProvider.ANTHROPIC,
             model="claude-3-5-sonnet-latest",
             prompt_hash="abc123",
@@ -57,6 +58,7 @@ def test_llm_audit_record_is_persisted_to_sqlite() -> None:
         assert row.output_tokens == 55
         assert row.course_id == "course-1"
         assert row.module_id is None
+        assert row.task_type is None
         assert row.output_hash == "hash-1"
         assert row.output_length == 25
         assert row.output_text == '{"answer":"ok"}'

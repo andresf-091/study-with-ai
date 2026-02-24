@@ -272,6 +272,74 @@ def test_main_window_open_course_plan_dialog_for_selected_course(
         _dispose_window_and_db(application, window, engine, db_path)
 
 
+def test_main_window_open_practice_without_selection_shows_status_message(
+    application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = Path("tests") / f"_runtime_courses_practice_no_selection_{uuid4().hex}.db"
+    session_factory, engine = _seed_database(
+        db_path,
+        [_make_raw_text(CourseSourceType.PASTE, "Курс без выбора", None)],
+    )
+    window: MainWindow | None = None
+    try:
+        monkeypatch.setenv(DB_PATH_ENV_VAR, str(db_path.resolve()))
+        monkeypatch.setattr(
+            "praktikum_app.presentation.qt.main_window.create_default_session_factory",
+            lambda: session_factory,
+        )
+
+        window = MainWindow()
+        courses_list = _require_widget(window, QListWidget, "coursesList")
+        courses_list.setCurrentRow(-1)
+        window._on_open_practice_clicked()
+
+        assert "Выберите курс для практики." in window.statusBar().currentMessage()
+    finally:
+        _dispose_window_and_db(application, window, engine, db_path)
+
+
+def test_main_window_open_practice_dialog_for_selected_course(
+    application: QApplication,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = Path("tests") / f"_runtime_courses_practice_open_{uuid4().hex}.db"
+    session_factory, engine = _seed_database(
+        db_path,
+        [_make_raw_text(CourseSourceType.PASTE, "Курс для практики", None)],
+    )
+    window: MainWindow | None = None
+    calls: list[str] = []
+
+    class FakePracticeDialog:
+        def __init__(self, *, course_id: str, **_: object) -> None:
+            calls.append(course_id)
+
+        def exec(self) -> int:
+            return 0
+
+    try:
+        monkeypatch.setenv(DB_PATH_ENV_VAR, str(db_path.resolve()))
+        monkeypatch.setattr(
+            "praktikum_app.presentation.qt.main_window.create_default_session_factory",
+            lambda: session_factory,
+        )
+        monkeypatch.setattr(
+            "praktikum_app.presentation.qt.main_window.PracticeDialog",
+            FakePracticeDialog,
+        )
+
+        window = MainWindow()
+        courses_list = _require_widget(window, QListWidget, "coursesList")
+        courses_list.setCurrentRow(0)
+        selected_course_id = str(courses_list.item(0).data(Qt.ItemDataRole.UserRole))
+        window._on_open_practice_clicked()
+
+        assert calls == [selected_course_id]
+    finally:
+        _dispose_window_and_db(application, window, engine, db_path)
+
+
 def test_main_window_delete_shows_error_on_db_failure(
     application: QApplication,
     monkeypatch: pytest.MonkeyPatch,

@@ -211,6 +211,25 @@ Schema validation behavior:
 - Генерация и проверка практики, напоминания и расширенные учебные сценарии ещё не реализованы.
 - OCR-движок для сканов PDF не встроен (только подсказка пользователю).
 
+## Practice Generation Flow (PR#8)
+
+- В главном окне выберите курс и нажмите `Практика...`.
+- В экране `Практика по модулю` выберите модуль, уровень сложности и количество вариантов.
+- Нажмите `Сгенерировать` для первого набора задач или `Перегенерировать` для нового набора.
+- Каждый regenerate сохраняет новую batch-запись в историю (`practice_tasks`), старые варианты не затираются.
+- Блок `История генераций` показывает накопленные варианты по выбранному модулю.
+
+Что сохраняется сейчас:
+
+- `statement`, `expected_outline`, `difficulty`, `candidate_index`, `created_at`
+- связка с `course_id` и `module_id`
+- `llm_call_id` для аудита
+
+Ограничения PR#8:
+
+- Поле `Ваш ответ` в UI пока только для ввода/черновика.
+- Проверка и оценивание ответа появятся в PR#9.
+
 ## Quality Checks
 
 ```bash
@@ -236,11 +255,11 @@ $env:QT_QPA_PLATFORM='offscreen'; python -m pytest
 - In CI/headless (`QT_QPA_PLATFORM=offscreen`) tray can be unavailable; the app
   gracefully falls back to status-bar messages instead of failing.
 
-## Current Limitations (PR#7)
+## Current Limitations (PR#8)
 
 - OCR engine is not embedded (hint only for scan-like PDFs).
-- End-user flow beyond decomposition (practice generation/grading, reminders) is not implemented yet.
-- No OCR engine integration.
+- Автоматическая проверка и оценивание ответов (grading) не реализованы, это PR#9.
+- Напоминания и расписание практики не реализованы, это отдельный этап плана.
 
 ## Pre-commit
 

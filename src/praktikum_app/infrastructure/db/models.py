@@ -25,6 +25,7 @@ class CourseModel(Base):
     raw_texts: Mapped[list[RawTextModel]] = relationship(back_populates="course")
     modules: Mapped[list[ModuleModel]] = relationship(back_populates="course")
     deadlines: Mapped[list[DeadlineModel]] = relationship(back_populates="course")
+    practice_tasks: Mapped[list[PracticeTaskModel]] = relationship(back_populates="course")
     llm_calls: Mapped[list[LlmCallModel]] = relationship(back_populates="course")
 
 
@@ -84,6 +85,7 @@ class ModuleModel(Base):
 
     course: Mapped[CourseModel] = relationship(back_populates="modules")
     deadlines: Mapped[list[DeadlineModel]] = relationship(back_populates="module")
+    practice_tasks: Mapped[list[PracticeTaskModel]] = relationship(back_populates="module")
     llm_calls: Mapped[list[LlmCallModel]] = relationship(back_populates="module")
 
 
@@ -111,6 +113,26 @@ class DeadlineModel(Base):
     module: Mapped[ModuleModel | None] = relationship(back_populates="deadlines")
 
 
+class PracticeTaskModel(Base):
+    """Generated practice task candidates persisted per module."""
+
+    __tablename__ = "practice_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), nullable=False, index=True)
+    module_id: Mapped[str] = mapped_column(ForeignKey("modules.id"), nullable=False, index=True)
+    llm_call_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    candidate_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    difficulty: Mapped[str] = mapped_column(String(16), nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_outline: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    course: Mapped[CourseModel] = relationship(back_populates="practice_tasks")
+    module: Mapped[ModuleModel] = relationship(back_populates="practice_tasks")
+
+
 class LlmCallModel(Base):
     """LLM calls audit structure reserved for future integration."""
 
@@ -128,6 +150,7 @@ class LlmCallModel(Base):
         nullable=True,
         index=True,
     )
+    task_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     prompt_hash: Mapped[str] = mapped_column(String(64), nullable=False)

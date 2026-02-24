@@ -142,6 +142,7 @@ def test_router_routes_course_parse_to_anthropic() -> None:
     assert anthropic.calls == 1
     assert openrouter.calls == 0
     assert audit_repo.records[-1].status == "success"
+    assert audit_repo.records[-1].task_type is LLMTaskType.COURSE_PARSE
 
 
 def test_router_routes_curator_msg_to_openrouter() -> None:
@@ -164,6 +165,7 @@ def test_router_routes_curator_msg_to_openrouter() -> None:
     assert anthropic.calls == 0
     assert openrouter.calls == 1
     assert audit_repo.records[-1].status == "success"
+    assert audit_repo.records[-1].task_type is LLMTaskType.CURATOR_MSG
 
 
 def test_router_raises_when_provider_key_missing() -> None:
@@ -359,6 +361,33 @@ def test_router_marks_provider_rejected_and_raises_request_rejected() -> None:
 
     assert anthropic.calls == 1
     assert audit_repo.records[-1].status == "provider_rejected"
+
+
+def test_router_surfaces_openrouter_privacy_policy_hint() -> None:
+    anthropic = SequenceProvider(LLMServiceProvider.ANTHROPIC, [])
+    openrouter = SequenceProvider(
+        LLMServiceProvider.OPENROUTER,
+        [
+            ProviderRequestError(
+                "openrouter request failed with status=404. "
+                "detail=No endpoints found matching your data policy "
+                "(Free model publication)."
+            )
+        ],
+    )
+    audit_repo = InMemoryAuditRepository()
+    router = _make_router(
+        anthropic=anthropic,
+        openrouter=openrouter,
+        audit_repo=audit_repo,
+    )
+
+    with pytest.raises(LLMRequestRejectedError, match="privacy policy"):
+        router.execute(_make_request(task_type=LLMTaskType.CURATOR_MSG))
+
+    assert openrouter.calls == 1
+    assert audit_repo.records[-1].status == "provider_rejected"
+    assert audit_repo.records[-1].task_type is LLMTaskType.CURATOR_MSG
 
 
 def _make_router(

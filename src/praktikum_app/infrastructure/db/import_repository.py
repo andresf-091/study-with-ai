@@ -20,6 +20,7 @@ from praktikum_app.infrastructure.db.models import (
     DeadlineModel,
     LlmCallModel,
     ModuleModel,
+    PracticeTaskModel,
     RawTextModel,
 )
 
@@ -149,6 +150,9 @@ class SqlAlchemyImportedCourseRepository(ImportedCourseRepository):
             )
 
         self._session.execute(delete(LlmCallModel).where(LlmCallModel.course_id == course_id))
+        self._session.execute(
+            delete(PracticeTaskModel).where(PracticeTaskModel.course_id == course_id)
+        )
         self._session.execute(delete(DeadlineModel).where(DeadlineModel.course_id == course_id))
         self._session.execute(delete(ModuleModel).where(ModuleModel.course_id == course_id))
         self._session.execute(delete(RawTextModel).where(RawTextModel.course_id == course_id))
